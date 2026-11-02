@@ -1,0 +1,15 @@
+{
+  "name": "proofbook-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tamper-evident, privacy-preserving evidence trails anchored on Stellar / Soroban",
+  "license": "MIT",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "contract:test": "cd contracts/proofbook && cargo test",
+    "contract:build": "cd contracts/proofbook && cargo build --target wasm32-unknown-unknown --release"
+  },
+  "packageManager": "pnpm@10.28.2"
+}

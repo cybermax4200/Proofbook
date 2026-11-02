@@ -1,0 +1,25 @@
+# Node
+node_modules/
+dist/
+.next/
+out/
+.turbo/
+
+# Rust / Cargo
+target/
+
+# Environment & Keys
+.env
+.env.local
+*.pem
+*.key
+
+# Local Data & SQLite / PGlite
+.data/
+*.sqlite
+*.sqlite-journal
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
