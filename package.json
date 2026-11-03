@@ -8,8 +8,10 @@
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "lint": "pnpm -r run lint",
-    "contract:test": "cd contracts/proofbook && cargo test",
-    "contract:build": "cd contracts/proofbook && cargo build --target wasm32-unknown-unknown --release"
+    "contract:test": "pnpm --filter @proofbook/contracts test",
+    "contract:build": "pnpm --filter @proofbook/contracts build",
+    "contract:deploy": "pnpm --filter @proofbook/contracts deploy:testnet",
+    "contract:interact": "pnpm --filter @proofbook/contracts interact:testnet"
   },
   "packageManager": "pnpm@10.28.2"
 }

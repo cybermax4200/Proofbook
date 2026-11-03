@@ -1,0 +1,22 @@
+{
+  "name": "@proofbook/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Soroban smart contracts and deployment scripts for Proofbook",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test",
+    "deploy:testnet": "tsx scripts/deploy-testnet.ts",
+    "interact:testnet": "tsx scripts/interact-testnet.ts"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^17.4.0",
+    "dotenv": "^18.0.9"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.0"
+  }
+}
