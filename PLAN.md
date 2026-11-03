@@ -47,7 +47,7 @@ flowchart TD
 
 - [x] **Day 1: Monorepo Setup & Soroban Smart Contract** *(Completed)*
 - [x] **Day 2: Testnet Deployment & Automation Scripts** *(Completed)*
-- [ ] **Day 3: Cryptographic Engine (`packages/crypto`) — Format PB1**
+- [x] **Day 3: Cryptographic Engine (`packages/crypto`) — Format PB1** *(Completed)*
 - [ ] **Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`)**
 - [ ] **Day 5: Database Schema & Records API (`apps/api`)**
 - [ ] **Day 6: Maker-Checker Approvals & Evidence Storage**
@@ -90,21 +90,22 @@ pnpm --filter @proofbook/contracts interact:testnet
 
 ---
 
-### Day 3: Cryptographic Engine (`packages/crypto`) — Format PB1
-- [ ] Initialize `packages/crypto` with TypeScript + Node.js/WebCrypto + `@noble/hashes` + `@noble/ed25519`.
-- [ ] Implement PB1 canonical serialization (RFC 8785 subset, fixed precision, deterministic ordering).
-- [ ] Implement salted field commitments:
+### Day 3: Cryptographic Engine (`packages/crypto`) — Format PB1 ✅
+- [x] Initialize `packages/crypto` with TypeScript + Node.js/WebCrypto + `@noble/hashes` + `@noble/ed25519`.
+- [x] Implement PB1 canonical serialization (RFC 8785 subset, fixed precision, deterministic ordering).
+- [x] Implement salted field commitments:
   $$\text{commit}(k, v, s) = \text{SHA256}(0x02 \parallel \text{len\_u16\_be}(k) \parallel k \parallel \text{len\_u32\_be}(v) \parallel v \parallel s)$$
-- [ ] Implement PB1 Merkle Tree builder:
+- [x] Implement PB1 Merkle Tree builder:
   - Record leaf domain separation (`0x00`).
   - Internal node domain separation (`0x01`).
   - Odd-node promotion without duplicate hashing.
   - Merkle proof generator with side indicators (`left` / `right`).
-- [ ] Test vectors suite matching `/spec/FORMAT.md`.
+- [x] Test vectors suite matching `/spec/FORMAT.md` and automated validation script.
 
 **Verification:**
 ```bash
 pnpm --filter @proofbook/crypto test
+pnpm test:vectors
 ```
 
 ---
