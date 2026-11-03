@@ -1,0 +1,29 @@
+{
+  "name": "@proofbook/crypto",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cryptographic engine for Proofbook Format PB1: Canonical serialization, salted commitments, Merkle proofs, and Ed25519 signatures",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx --test test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^2.2.3",
+    "@noble/hashes": "^1.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0"
+  }
+}
