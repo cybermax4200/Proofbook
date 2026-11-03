@@ -1,0 +1,166 @@
+{
+  "version": "PB1",
+  "description": "Proofbook Format PB1 Test Vectors",
+  "canonical_serialization": {
+    "input": {
+      "z": 1,
+      "a": "hello",
+      "m": [
+        3,
+        2,
+        1
+      ],
+      "b": {
+        "y": true,
+        "x": false
+      }
+    },
+    "expected": "{\"a\":\"hello\",\"b\":{\"x\":false,\"y\":true},\"m\":[3,2,1],\"z\":1}"
+  },
+  "field_commitments": {
+    "fields": {
+      "amount": "1250.00",
+      "currency": "USD",
+      "payee": "Acme Supplies Ltd",
+      "purpose": "Classroom materials, batch 4"
+    },
+    "salts": {
+      "amount": "0101010101010101010101010101010101010101010101010101010101010101",
+      "currency": "0202020202020202020202020202020202020202020202020202020202020202",
+      "payee": "0303030303030303030303030303030303030303030303030303030303030303",
+      "purpose": "0404040404040404040404040404040404040404040404040404040404040404"
+    },
+    "commitments": {
+      "amount": "695dadfeb60bf27090baa844ca7edf94a67e0c28ad85cc471531f0a0598bca86",
+      "currency": "34726da1d53787311e85c3b86b41a7f53b5853c7d30eb1821ef302d74f06f792",
+      "payee": "caa99ee0071d18d89c24eb24c640e8b063179d535e13be91e23cd2b618a10d2a",
+      "purpose": "e5945f599c8ff39c98b7a5652ad6366018fdc995f658474a97d5766f7cfc5ff2"
+    },
+    "field_root": "11bcd426b118a3e9d996ee2b05c86008f4a0b61289c51eb1d59b2aca3bf690ce"
+  },
+  "record_leaf": {
+    "record_id": "01HZX6789ABCDEF0123456789A",
+    "author": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+    "created_at": "2026-11-02T09:14:00Z",
+    "field_root": "11bcd426b118a3e9d996ee2b05c86008f4a0b61289c51eb1d59b2aca3bf690ce",
+    "expected_leaf": "4ffebfe1fbeea351a8c9b12e23d110072a9f3cefe35721ee4b9f8ad6addebb6e"
+  },
+  "signatures": {
+    "secret_key": "0707070707070707070707070707070707070707070707070707070707070707",
+    "public_key": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+    "message": "4ffebfe1fbeea351a8c9b12e23d110072a9f3cefe35721ee4b9f8ad6addebb6e",
+    "signature": "dff36e078aeb176c4470cb884815105693e5128d1e48d74c0daee6434f3f661f827f60952535d64ac25ce19f1697b322ffbdac1f2e756a73fd31f3a47344e008"
+  },
+  "merkle_trees": {
+    "three_leaves": {
+      "leaves": [
+        "4ffebfe1fbeea351a8c9b12e23d110072a9f3cefe35721ee4b9f8ad6addebb6e",
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "2222222222222222222222222222222222222222222222222222222222222222"
+      ],
+      "root": "424931a27af0ed483bef809271e55b0ce1f29e843f654eb796faee415d480d17",
+      "proofs": [
+        [
+          {
+            "side": "right",
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          {
+            "side": "right",
+            "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ],
+        [
+          {
+            "side": "left",
+            "hash": "4ffebfe1fbeea351a8c9b12e23d110072a9f3cefe35721ee4b9f8ad6addebb6e"
+          },
+          {
+            "side": "right",
+            "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ],
+        [
+          {
+            "side": "left",
+            "hash": "50847bfa6bf1444cdaed94c58bfe51339a6ddea8ff031cc7c923881bff2eab24"
+          }
+        ]
+      ]
+    },
+    "five_leaves": {
+      "leaves": [
+        "4ffebfe1fbeea351a8c9b12e23d110072a9f3cefe35721ee4b9f8ad6addebb6e",
+        "1111111111111111111111111111111111111111111111111111111111111111",
+        "2222222222222222222222222222222222222222222222222222222222222222",
+        "3333333333333333333333333333333333333333333333333333333333333333",
+        "4444444444444444444444444444444444444444444444444444444444444444"
+      ],
+      "root": "7812bd0005e7417d2e6348ecdc8d909df9a9e47f3695eba58ac40d933ca1bfd1",
+      "proofs": [
+        [
+          {
+            "side": "right",
+            "hash": "1111111111111111111111111111111111111111111111111111111111111111"
+          },
+          {
+            "side": "right",
+            "hash": "0fa1595eca476fc8e07193e15f27e6c442d948365b58526faa8764f759d29ccb"
+          },
+          {
+            "side": "right",
+            "hash": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        ],
+        [
+          {
+            "side": "left",
+            "hash": "4ffebfe1fbeea351a8c9b12e23d110072a9f3cefe35721ee4b9f8ad6addebb6e"
+          },
+          {
+            "side": "right",
+            "hash": "0fa1595eca476fc8e07193e15f27e6c442d948365b58526faa8764f759d29ccb"
+          },
+          {
+            "side": "right",
+            "hash": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        ],
+        [
+          {
+            "side": "right",
+            "hash": "3333333333333333333333333333333333333333333333333333333333333333"
+          },
+          {
+            "side": "left",
+            "hash": "50847bfa6bf1444cdaed94c58bfe51339a6ddea8ff031cc7c923881bff2eab24"
+          },
+          {
+            "side": "right",
+            "hash": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        ],
+        [
+          {
+            "side": "left",
+            "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+          },
+          {
+            "side": "left",
+            "hash": "50847bfa6bf1444cdaed94c58bfe51339a6ddea8ff031cc7c923881bff2eab24"
+          },
+          {
+            "side": "right",
+            "hash": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        ],
+        [
+          {
+            "side": "left",
+            "hash": "65aa2c83afa7edd98ac294b1fff59a6c817e2ec4a0ec8f9b18036cc5f01511a2"
+          }
+        ]
+      ]
+    }
+  }
+}

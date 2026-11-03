@@ -15,7 +15,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "tsx --test test/**/*.test.ts"
+    "test": "tsx --test test/**/*.test.ts",
+    "test:vectors": "tsx --test test/vectors.test.ts"
   },
   "dependencies": {
     "@noble/ed25519": "^2.2.3",
