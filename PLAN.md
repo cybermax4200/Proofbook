@@ -46,7 +46,7 @@ flowchart TD
 ## 10-Day Progress Dashboard
 
 - [x] **Day 1: Monorepo Setup & Soroban Smart Contract** *(Completed)*
-- [ ] **Day 2: Testnet Deployment & Automation Scripts**
+- [x] **Day 2: Testnet Deployment & Automation Scripts** *(Completed)*
 - [ ] **Day 3: Cryptographic Engine (`packages/crypto`) — Format PB1**
 - [ ] **Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`)**
 - [ ] **Day 5: Database Schema & Records API (`apps/api`)**
@@ -71,19 +71,21 @@ flowchart TD
 
 ---
 
-### Day 2: Testnet Deployment & Automation Scripts
-- [ ] Install and configure Stellar TypeScript SDK (`@stellar/stellar-sdk`).
-- [ ] Create `contracts/proofbook/scripts/deploy-testnet.ts`:
-  - Testnet account generation and Friendbot auto-funding.
-  - Contract upload and instantiation.
-  - Automatic update of `PROOFBOOK_CONTRACT_ID` in `.env`.
-- [ ] Create `contracts/proofbook/scripts/interact-testnet.ts`:
-  - Script to invoke `register_org` and `anchor_checkpoint` on live Testnet.
-- [ ] Automated CI / npm scripts: `pnpm contract:deploy` and `pnpm contract:test`.
+### Day 2: Testnet Deployment & Automation Scripts ✅
+- [x] Install and configure Stellar TypeScript SDK (`@stellar/stellar-sdk`).
+- [x] Create `contracts/proofbook/scripts/deploy-testnet.ts`:
+  - Testnet account generation and Friendbot auto-funding with IPv4 fallback & retry strategy.
+  - Contract WASM upload and instantiation via Soroban RPC.
+  - Automatic update of `PROOFBOOK_CONTRACT_ID` and `FEE_PAYER_SECRET` in `.env`.
+- [x] Create `contracts/proofbook/scripts/interact-testnet.ts`:
+  - Live invocation of `register_org` and `anchor_checkpoint` with authorization.
+  - On-chain simulation and verification of `latest_checkpoint` state and continuity.
+- [x] Automated CI / npm scripts: `pnpm contract:deploy`, `pnpm contract:interact`, and `pnpm contract:test`.
 
 **Verification:**
 ```bash
 pnpm --filter @proofbook/contracts deploy:testnet
+pnpm --filter @proofbook/contracts interact:testnet
 ```
 
 ---
