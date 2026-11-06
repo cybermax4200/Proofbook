@@ -1,0 +1,29 @@
+{
+  "name": "@proofbook/verifier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Stateless verification engine for Proofbook PB1 proof bundles and Stellar on-chain anchors",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx --test test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@proofbook/crypto": "workspace:*",
+    "@stellar/stellar-sdk": "^17.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0"
+  }
+}
