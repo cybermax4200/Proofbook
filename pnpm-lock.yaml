@@ -8,6 +8,28 @@ importers:
 
   .: {}
 
+  cli/proofbook-cli:
+    dependencies:
+      '@proofbook/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
+      '@proofbook/verifier':
+        specifier: workspace:*
+        version: link:../../packages/verifier
+      '@stellar/stellar-sdk':
+        specifier: ^17.4.0
+        version: 17.4.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.0
+        version: 24.19.2
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+
   contracts/proofbook:
     dependencies:
       '@stellar/stellar-sdk':

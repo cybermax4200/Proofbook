@@ -1,0 +1,26 @@
+{
+  "name": "proofbook-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Proofbook command-line verification tool for PB1 proof bundles and Stellar anchors",
+  "type": "module",
+  "bin": {
+    "proofbook": "./bin/proofbook"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc && chmod +x bin/proofbook",
+    "test": "tsx --test test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@proofbook/crypto": "workspace:*",
+    "@proofbook/verifier": "workspace:*",
+    "@stellar/stellar-sdk": "^17.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0"
+  }
+}

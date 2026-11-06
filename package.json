@@ -12,7 +12,11 @@
     "contract:test": "pnpm --filter @proofbook/contracts test",
     "contract:build": "pnpm --filter @proofbook/contracts build",
     "contract:deploy": "pnpm --filter @proofbook/contracts deploy:testnet",
-    "contract:interact": "pnpm --filter @proofbook/contracts interact:testnet"
+    "contract:interact": "pnpm --filter @proofbook/contracts interact:testnet",
+    "verifier:test": "pnpm --filter @proofbook/verifier test",
+    "cli:build": "pnpm --filter proofbook-cli build",
+    "cli:test": "pnpm --filter proofbook-cli test",
+    "cli:verify": "./cli/proofbook-cli/bin/proofbook verify ./spec/test-vectors/sample-bundle.json --network testnet"
   },
   "packageManager": "pnpm@10.28.2"
 }
