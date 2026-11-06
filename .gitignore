@@ -23,3 +23,7 @@ target/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local Planning
+Plan.md
+
