@@ -1,0 +1,66 @@
+{
+  "version": "PB1",
+  "network": "testnet",
+  "contract_id": "CDB4DCLRAIAGILGM4DWIOKOTSWDDY6IGP4X4FF62DA3GUQQ4LEKD5VCD",
+  "org": "GDGZW7GAZNBP4NGIPRUTHTIE6JRUEAWNOEXKMSXK6XYWQPRAQP2HHMRQ",
+  "checkpoint_id": 1,
+  "auditors": [
+    "GBHTYTJUH6BFBVER5OHDLLYYW4KOYH6J6L7WZVIAWH74H7FSOQCEZHI5"
+  ],
+  "record": {
+    "record_id": "01HZX6789ABCDEF0123456789A",
+    "created_at": "2026-11-02T09:14:00Z",
+    "author": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+    "field_root": "11bcd426b118a3e9d996ee2b05c86008f4a0b61289c51eb1d59b2aca3bf690ce",
+    "disclosed_fields": {
+      "amount": "1250.00",
+      "currency": "USD"
+    },
+    "salts": {
+      "amount": "0101010101010101010101010101010101010101010101010101010101010101",
+      "currency": "0202020202020202020202020202020202020202020202020202020202020202"
+    },
+    "field_proofs": {
+      "amount": [
+        {
+          "side": "right",
+          "hash": "34726da1d53787311e85c3b86b41a7f53b5853c7d30eb1821ef302d74f06f792"
+        },
+        {
+          "side": "right",
+          "hash": "6b4810b0a45e977472581e0601e11218bd85cb592101bdff04a3e8fc2aeb8abb"
+        }
+      ],
+      "currency": [
+        {
+          "side": "left",
+          "hash": "695dadfeb60bf27090baa844ca7edf94a67e0c28ad85cc471531f0a0598bca86"
+        },
+        {
+          "side": "right",
+          "hash": "6b4810b0a45e977472581e0601e11218bd85cb592101bdff04a3e8fc2aeb8abb"
+        }
+      ]
+    }
+  },
+  "merkle_path": [
+    {
+      "side": "right",
+      "hash": "1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "side": "right",
+      "hash": "2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  ],
+  "signatures": {
+    "author": "dff36e078aeb176c4470cb884815105693e5128d1e48d74c0daee6434f3f661f827f60952535d64ac25ce19f1697b322ffbdac1f2e756a73fd31f3a47344e008",
+    "approvers": [
+      {
+        "publicKey": "1398f62c6d1a457c51ba6a4b5f3dbd2f69fca93216218dc8997e416bd17d93ca",
+        "signature": "bda1b5827b627e3721cb06eab817cfef5300f8e54d7d7f7a441e5627a45a4c5795fe18d1f8884f56c0ed6c9496a535a3f10b8a5f27aee5dc156cd8604675fa02"
+      }
+    ]
+  },
+  "expected_root": "424931a27af0ed483bef809271e55b0ce1f29e843f654eb796faee415d480d17"
+}

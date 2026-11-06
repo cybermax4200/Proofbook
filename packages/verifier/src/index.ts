@@ -51,11 +51,16 @@ export async function verifyProofBundle(
   }
 
   try {
+    const auditorsToCheck =
+      options.auditorsToCheck && options.auditorsToCheck.length > 0
+        ? options.auditorsToCheck
+        : (bundle.auditors || (bundle.auditor ? [bundle.auditor] : []));
+
     const onChainReport = await verifyOnChainCheckpoint(bundle, {
       rpcUrl: options.rpcUrl,
       networkPassphrase: options.networkPassphrase,
       contractId: options.contractId,
-      auditorsToCheck: options.auditorsToCheck,
+      auditorsToCheck,
     });
 
     report.onChain = onChainReport;

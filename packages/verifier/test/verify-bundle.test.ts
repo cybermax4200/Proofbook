@@ -156,9 +156,9 @@ describe('PB1 Bundle Verification Engine', () => {
   it('rejects tampered author signature', () => {
     const { bundle } = createValidBundleFixture();
     const tampered = JSON.parse(JSON.stringify(bundle)) as ProofBundle;
-    // Mutate signature hex
+    const authSig = tampered.signatures.author;
     tampered.signatures.author =
-      '00' + tampered.signatures.author.slice(2);
+      authSig.endsWith('0') ? authSig.slice(0, -1) + '1' : authSig.slice(0, -1) + '0';
 
     const report = verifyBundleOffline(tampered);
     assert.strictEqual(report.valid, false);
@@ -169,8 +169,9 @@ describe('PB1 Bundle Verification Engine', () => {
     const { bundle } = createValidBundleFixture();
     const tampered = JSON.parse(JSON.stringify(bundle)) as ProofBundle;
     if (typeof tampered.signatures.approvers?.[0] === 'object') {
+      const sig = tampered.signatures.approvers[0].signature;
       tampered.signatures.approvers[0].signature =
-        'ff' + tampered.signatures.approvers[0].signature.slice(2);
+        sig.endsWith('0') ? sig.slice(0, -1) + '1' : sig.slice(0, -1) + '0';
     }
 
     const report = verifyBundleOffline(tampered);

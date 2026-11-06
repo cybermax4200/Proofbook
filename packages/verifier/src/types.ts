@@ -39,6 +39,8 @@ export interface ProofBundle {
   contract_id?: string;
   org?: string; // Stellar G... address
   checkpoint_id?: number;
+  auditor?: string;
+  auditors?: string[];
   record: ProofBundleRecord;
   merkle_path: MerkleProofStep[];
   signatures: ProofBundleSignatures;
