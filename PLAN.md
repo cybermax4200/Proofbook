@@ -48,7 +48,7 @@ flowchart TD
 - [x] **Day 1: Monorepo Setup & Soroban Smart Contract** *(Completed)*
 - [x] **Day 2: Testnet Deployment & Automation Scripts** *(Completed)*
 - [x] **Day 3: Cryptographic Engine (`packages/crypto`) — Format PB1** *(Completed)*
-- [ ] **Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`)**
+- [x] **Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`)** *(Completed)*
 - [ ] **Day 5: Database Schema & Records API (`apps/api`)**
 - [ ] **Day 6: Maker-Checker Approvals & Evidence Storage**
 - [ ] **Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`)**
@@ -110,21 +110,40 @@ pnpm test:vectors
 
 ---
 
-### Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`)
-- [ ] Initialize `packages/verifier`:
+### Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`) ✅
+- [x] Initialize `packages/verifier`:
   - Standalone, zero-server dependency bundle verification.
-  - Recompute field commitments and leaf hash.
+  - Recompute field commitments, selective disclosure Merkle paths, and leaf hash.
   - Verify Merkle proof against expected root.
   - Check Ed25519 author and checker signatures.
-  - Stellar RPC reader: verify on-chain checkpoint, ledger timestamp, and auditor witness records.
-- [ ] Build `cli/proofbook-cli`:
+  - Stellar RPC reader: verify on-chain checkpoint, ledger sequence, timestamp, and auditor witness records.
+- [x] Build `cli/proofbook-cli`:
   - Executable CLI: `proofbook verify <path-to-bundle.json> --network testnet`.
+  - Supports `--skip-blockchain` / `--offline` mode and `--json` machine-readable output.
   - Colorized terminal report for audit compliance.
+- [x] Live Testnet Verification:
+  - Anchored test vector checkpoint on Soroban contract `CDB4DCLRAIAGILGM4DWIOKOTSWDDY6IGP4X4FF62DA3GUQQ4LEKD5VCD`.
+  - Authorized auditor `GBHTYTJU...` and witnessed checkpoint #1 on-chain.
 
 **Verification:**
 ```bash
 pnpm --filter proofbook-cli build
 ./cli/proofbook-cli/bin/proofbook verify ./spec/test-vectors/sample-bundle.json --network testnet
+```
+
+```text
+Proofbook PB1 Audit Verifier v0.1.0
+Bundle:     /path/to/spec/test-vectors/sample-bundle.json
+Record ID:  01HZX6789ABCDEF0123456789A (Network: testnet)
+──────────────────────────────────────────────────────────
+Recomputed leaf ............. OK [4ffebfe1...debb6e]
+Merkle path to root ......... OK (2 steps)
+On-chain checkpoint #1 ...... root matches (ledger 5591134)
+Author signature ............ OK (ea4a6c63...)
+Approver signatures ......... OK (1 of 1 required)
+Auditor witnesses ........... 1 (GBHTYTJU...)
+──────────────────────────────────────────────────────────
+RESULT: VERIFIED ✓
 ```
 
 ---
