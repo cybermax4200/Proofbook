@@ -49,7 +49,7 @@ flowchart TD
 - [x] **Day 2: Testnet Deployment & Automation Scripts** *(Completed)*
 - [x] **Day 3: Cryptographic Engine (`packages/crypto`) — Format PB1** *(Completed)*
 - [x] **Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`)** *(Completed)*
-- [ ] **Day 5: Database Schema & Records API (`apps/api`)**
+- [x] **Day 5: Database Schema & Records API (`apps/api`)** *(Completed)*
 - [ ] **Day 6: Maker-Checker Approvals & Evidence Storage**
 - [ ] **Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`)**
 - [ ] **Day 8: Auditor Workspace & Proof Bundler**
@@ -148,20 +148,33 @@ RESULT: VERIFIED ✓
 
 ---
 
-### Day 5: Database Schema & Records API (`apps/api`)
-- [ ] Setup Fastify/Node REST API in `apps/api`.
-- [ ] Configure Drizzle ORM supporting both PostgreSQL (via `DATABASE_URL`) and in-process PGlite (`@electric-sql/pglite`) for zero-Docker setups.
-- [ ] Database Schema:
-  - `users`, `user_keys` (Ed25519 public keys)
+### Day 5: Database Schema & Records API (`apps/api`) ✅
+- [x] Setup Fastify/Node REST API in `apps/api`.
+- [x] Configure Drizzle ORM supporting both PostgreSQL (via `DATABASE_URL`) and in-process PGlite (`@electric-sql/pglite`) for zero-Docker setups.
+- [x] Database Schema:
+  - `users`, `user_keys` (Ed25519 public keys and revocation tracking)
   - `orgs`, `memberships` (roles: `admin`, `maker`, `checker`, `auditor`)
-  - `records` (`status: draft|pending|approved|rejected|shredded`, `leaf_hash`, `field_root`, `ciphertext_ref`)
-  - `record_signatures`
-- [ ] Authentication endpoints & public key registration (`/auth/register`, `/auth/login`).
-- [ ] Encrypted record ingestion endpoint: accepts signed ciphertext + commitment.
+  - `records` (`status: draft|pending|approved|rejected|shredded`, `leaf_hash`, `field_root`, `ciphertext_ref`, `seq_no`)
+  - `record_signatures` (author and approver co-signatures)
+  - `evidence`, `checkpoints`, `checkpoint_records`, `merkle_nodes`
+- [x] Authentication endpoints & public key registration (`/api/v1/auth/register`, `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/keys`).
+- [x] Organization & membership management (`/api/v1/orgs`, `/api/v1/orgs/:id/members`).
+- [x] Encrypted record ingestion endpoint (`POST /api/v1/orgs/:id/records`): verifies PB1 `leaf_hash` and author Ed25519 signature before persisting, assigns monotonic sequence number, and stores encrypted payload via pluggable `StorageProvider`.
+- [x] Record query & retrieval endpoints (`GET /api/v1/orgs/:id/records`, `GET /api/v1/orgs/:id/records/:rid`).
 
 **Verification:**
 ```bash
 pnpm --filter @proofbook/api test
+```
+
+```text
+▶ Fastify App Initialization (1 test)
+▶ Authentication & Key Management Routes (4 tests)
+▶ Database & Schema Initialization (3 tests)
+▶ Organization & Membership Routes (1 test)
+▶ Encrypted Record Ingestion & Retrieval Routes (3 tests)
+▶ Schema & Relation Constraints (3 tests)
+✔ 15 tests passed across 6 test suites
 ```
 
 ---
