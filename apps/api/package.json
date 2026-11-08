@@ -1,0 +1,30 @@
+{
+  "name": "@proofbook/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Proofbook Core REST API for organizations, records, and approvals",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "tsx --test test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.14",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/jwt": "^9.0.4",
+    "@proofbook/crypto": "workspace:*",
+    "drizzle-orm": "^0.38.4",
+    "fastify": "^5.2.1",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.0",
+    "@types/pg": "^8.11.11",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.0"
+  }
+}
