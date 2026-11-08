@@ -3,6 +3,8 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { DatabaseHandle, AppDatabase } from './db/index.js';
 import { AppConfig, loadConfig } from './config.js';
+import { authRoutes } from './auth/routes.js';
+import { orgRoutes } from './orgs/routes.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -45,13 +47,17 @@ export async function buildFastifyApp(options: AppOptions): Promise<FastifyInsta
   // Authentication decorator hook
   app.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      await request.jwtVerify();
-    } catch (err) {
-      reply.status(401).send({ error: 'Unauthorized', message: 'Invalid or missing authentication token' });
+      const decoded = await request.jwtVerify<{ id?: string; sub: string; email: string }>();
+      request.user = {
+        id: decoded.id || decoded.sub,
+        email: decoded.email,
+      };
+    } catch {
+      return reply.status(401).send({ error: 'Unauthorized', message: 'Invalid or missing authentication token' });
     }
   });
 
-  // Basic Health Check
+  // Health check
   app.get('/health', async () => {
     return {
       status: 'ok',
@@ -60,6 +66,10 @@ export async function buildFastifyApp(options: AppOptions): Promise<FastifyInsta
       timestamp: new Date().toISOString(),
     };
   });
+
+  // API v1 routes
+  await app.register(authRoutes, { prefix: '/api/v1/auth' });
+  await app.register(orgRoutes, { prefix: '/api/v1' });
 
   return app;
 }
