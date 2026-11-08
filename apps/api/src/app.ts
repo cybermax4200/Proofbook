@@ -5,6 +5,8 @@ import { DatabaseHandle, AppDatabase } from './db/index.js';
 import { AppConfig, loadConfig } from './config.js';
 import { authRoutes } from './auth/routes.js';
 import { orgRoutes } from './orgs/routes.js';
+import { recordRoutes } from './records/routes.js';
+import { StorageProvider, createStorageProvider } from './records/storage.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -19,10 +21,13 @@ declare module 'fastify' {
 export interface AppOptions {
   dbHandle: DatabaseHandle;
   config?: AppConfig;
+  storage?: StorageProvider;
 }
 
 export async function buildFastifyApp(options: AppOptions): Promise<FastifyInstance> {
   const config = options.config || loadConfig();
+  const storage = options.storage || createStorageProvider(config.storageDir);
+
   const app = Fastify({
     logger: false,
   });
@@ -70,6 +75,9 @@ export async function buildFastifyApp(options: AppOptions): Promise<FastifyInsta
   // API v1 routes
   await app.register(authRoutes, { prefix: '/api/v1/auth' });
   await app.register(orgRoutes, { prefix: '/api/v1' });
+  await app.register(async (subApp) => {
+    await recordRoutes(subApp, { storage });
+  }, { prefix: '/api/v1' });
 
   return app;
 }
