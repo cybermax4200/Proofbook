@@ -3,6 +3,7 @@ import {
   text,
   timestamp,
   integer,
+  bigint,
   primaryKey,
 } from 'drizzle-orm/pg-core';
 
@@ -79,6 +80,63 @@ export const recordSignatures = pgTable('record_signatures', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const evidence = pgTable('evidence', {
+  id: text('id').primaryKey(),
+  recordId: text('record_id')
+    .notNull()
+    .references(() => records.id, { onDelete: 'cascade' }),
+  sha256: text('sha256').notNull(),
+  ciphertextRef: text('ciphertext_ref').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const checkpoints = pgTable('checkpoints', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  onchainId: integer('onchain_id'),
+  root: text('root').notNull(),
+  prevRoot: text('prev_root').notNull(),
+  recordCount: integer('record_count').notNull(),
+  periodStart: text('period_start').notNull(),
+  periodEnd: text('period_end').notNull(),
+  txHash: text('tx_hash'),
+  ledger: integer('ledger'),
+  anchoredAt: timestamp('anchored_at', { withTimezone: true }),
+});
+
+export const checkpointRecords = pgTable(
+  'checkpoint_records',
+  {
+    checkpointId: text('checkpoint_id')
+      .notNull()
+      .references(() => checkpoints.id, { onDelete: 'cascade' }),
+    recordId: text('record_id')
+      .notNull()
+      .references(() => records.id, { onDelete: 'cascade' }),
+    leafIndex: integer('leaf_index').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.checkpointId, table.recordId] }),
+  ]
+);
+
+export const merkleNodes = pgTable(
+  'merkle_nodes',
+  {
+    checkpointId: text('checkpoint_id')
+      .notNull()
+      .references(() => checkpoints.id, { onDelete: 'cascade' }),
+    level: integer('level').notNull(),
+    idx: integer('idx').notNull(),
+    hash: text('hash').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.checkpointId, table.level, table.idx] }),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
@@ -96,3 +154,9 @@ export type NewRecord = typeof records.$inferInsert;
 
 export type RecordSignature = typeof recordSignatures.$inferSelect;
 export type NewRecordSignature = typeof recordSignatures.$inferInsert;
+
+export type Evidence = typeof evidence.$inferSelect;
+export type NewEvidence = typeof evidence.$inferInsert;
+
+export type Checkpoint = typeof checkpoints.$inferSelect;
+export type NewCheckpoint = typeof checkpoints.$inferInsert;

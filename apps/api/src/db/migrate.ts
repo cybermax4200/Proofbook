@@ -53,9 +53,47 @@ CREATE TABLE IF NOT EXISTS record_signatures (
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS evidence (
+  id TEXT PRIMARY KEY,
+  record_id TEXT NOT NULL REFERENCES records(id) ON DELETE CASCADE,
+  sha256 TEXT NOT NULL,
+  ciphertext_ref TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS checkpoints (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  onchain_id INTEGER,
+  root TEXT NOT NULL,
+  prev_root TEXT NOT NULL,
+  record_count INTEGER NOT NULL,
+  period_start TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+  tx_hash TEXT,
+  ledger INTEGER,
+  anchored_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS checkpoint_records (
+  checkpoint_id TEXT NOT NULL REFERENCES checkpoints(id) ON DELETE CASCADE,
+  record_id TEXT NOT NULL REFERENCES records(id) ON DELETE CASCADE,
+  leaf_index INTEGER NOT NULL,
+  PRIMARY KEY (checkpoint_id, record_id)
+);
+
+CREATE TABLE IF NOT EXISTS merkle_nodes (
+  checkpoint_id TEXT NOT NULL REFERENCES checkpoints(id) ON DELETE CASCADE,
+  level INTEGER NOT NULL,
+  idx INTEGER NOT NULL,
+  hash TEXT NOT NULL,
+  PRIMARY KEY (checkpoint_id, level, idx)
+);
+
 CREATE INDEX IF NOT EXISTS idx_records_org_seq ON records(org_id, seq_no);
 CREATE INDEX IF NOT EXISTS idx_records_org_status ON records(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_user_keys_user ON user_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_checkpoints_org ON checkpoints(org_id);
 `;
 
 export interface ExecutableClient {
