@@ -26,7 +26,14 @@ export interface AppOptions {
 
 export async function buildFastifyApp(options: AppOptions): Promise<FastifyInstance> {
   const config = options.config || loadConfig();
-  const storage = options.storage || createStorageProvider(config.storageDir);
+  const storage =
+    options.storage ||
+    createStorageProvider({
+      storageProvider: config.storageProvider,
+      storageDir: config.storageDir,
+      storageEncryptionKey: config.storageEncryptionKey,
+      s3: config.s3,
+    });
 
   const app = Fastify({
     logger: false,
