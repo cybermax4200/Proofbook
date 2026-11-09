@@ -160,3 +160,38 @@ export function getFieldProof(
   const proof = getMerkleProof(fieldRootResult.tree, index);
   return { index, proof };
 }
+
+/**
+ * Computes the canonical PB1 evidence hash string (`sha256:<hex>`) for an attachment payload.
+ */
+export function computeEvidenceHash(data: Uint8Array | string): string {
+  const bytes = typeof data === 'string' ? textEncoder.encode(data) : data;
+  const digest = sha256(bytes);
+  return `sha256:${Buffer.from(digest).toString('hex')}`;
+}
+
+/**
+ * Verifies that raw evidence bytes match a canonical `sha256:<hex>` or raw 64-char hex digest.
+ */
+export function verifyEvidenceHash(data: Uint8Array | string, expectedHash: string): boolean {
+  const computed = computeEvidenceHash(data);
+  const cleanExpected = expectedHash.trim().toLowerCase();
+  const normalizedExpected = cleanExpected.startsWith('sha256:')
+    ? cleanExpected
+    : `sha256:${cleanExpected.replace(/^0x/, '')}`;
+  return computed === normalizedExpected;
+}
+
+/**
+ * Calculates `evidence_hash: sha256:...` from attachment data and binds it into canonical record fields.
+ */
+export function bindEvidenceField(
+  fields: Record<string, string>,
+  evidenceData: Uint8Array | string
+): Record<string, string> {
+  return {
+    ...fields,
+    evidence_hash: computeEvidenceHash(evidenceData),
+  };
+}
+

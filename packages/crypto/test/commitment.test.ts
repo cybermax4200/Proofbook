@@ -6,6 +6,9 @@ import {
   computeFieldRoot,
   getFieldProof,
   generateSalt,
+  computeEvidenceHash,
+  verifyEvidenceHash,
+  bindEvidenceField,
   DOMAIN_FIELD_COMMIT,
 } from '../src/index.js';
 import { verifyMerkleProof } from '../src/merkle.js';
@@ -93,5 +96,32 @@ describe('PB1 Salted Field Commitments', () => {
     const tamperedCommitment = commitField('amount', '9999.00', salts.amount);
     const invalid = verifyMerkleProof(tamperedCommitment, proof, fieldRootRes.root);
     assert.strictEqual(invalid, false);
+  });
+
+  it('calculates evidence_hash (sha256:...) and binds it into canonical record fields', () => {
+    const invoicePdfBytes = new TextEncoder().encode('PDF-1.7 Invoice #INV-2026-042 Total: $1250.00');
+    const evidenceHash = computeEvidenceHash(invoicePdfBytes);
+
+    assert.ok(evidenceHash.startsWith('sha256:'));
+    assert.strictEqual(evidenceHash.length, 7 + 64);
+    assert.strictEqual(verifyEvidenceHash(invoicePdfBytes, evidenceHash), true);
+    assert.strictEqual(verifyEvidenceHash('tampered-invoice', evidenceHash), false);
+
+    const boundFields = bindEvidenceField(
+      { amount: '1250.00', payee: 'Acme Supplies Ltd' },
+      invoicePdfBytes
+    );
+    assert.strictEqual(boundFields.evidence_hash, evidenceHash);
+
+    const salts = {
+      amount: generateSalt(),
+      evidence_hash: generateSalt(),
+      payee: generateSalt(),
+    };
+
+    const rootRes = computeFieldRoot(boundFields, salts);
+    const { proof } = getFieldProof(rootRes, 'evidence_hash');
+    const evCommit = commitField('evidence_hash', evidenceHash, salts.evidence_hash);
+    assert.strictEqual(verifyMerkleProof(evCommit, proof, rootRes.root), true);
   });
 });
