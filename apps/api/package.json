@@ -10,7 +10,8 @@
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "test": "tsx --test test/**/*.test.ts"
+    "test": "tsx --test test/**/*.test.ts",
+    "test:workflow": "tsx --test test/workflow.test.ts test/storage.test.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.14",
