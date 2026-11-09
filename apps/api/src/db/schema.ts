@@ -65,6 +65,9 @@ export const records = pgTable('records', {
   seqNo: integer('seq_no').notNull(),
   createdAt: text('created_at').notNull(), // RFC 3339 UTC string used for leaf hashing
   approvedAt: timestamp('approved_at', { withTimezone: true }),
+  rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+  rejectedByUserId: text('rejected_by_user_id').references(() => users.id),
 });
 
 export const recordSignatures = pgTable('record_signatures', {
@@ -87,6 +90,20 @@ export const evidence = pgTable('evidence', {
     .references(() => records.id, { onDelete: 'cascade' }),
   sha256: text('sha256').notNull(),
   ciphertextRef: text('ciphertext_ref').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable('audit_logs', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  recordId: text('record_id').references(() => records.id, { onDelete: 'cascade' }),
+  actorId: text('actor_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  action: text('action').notNull(),
+  reason: text('reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -157,6 +174,9 @@ export type NewRecordSignature = typeof recordSignatures.$inferInsert;
 
 export type Evidence = typeof evidence.$inferSelect;
 export type NewEvidence = typeof evidence.$inferInsert;
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
 
 export type Checkpoint = typeof checkpoints.$inferSelect;
 export type NewCheckpoint = typeof checkpoints.$inferInsert;

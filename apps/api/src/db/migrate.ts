@@ -41,7 +41,10 @@ CREATE TABLE IF NOT EXISTS records (
   ciphertext_ref TEXT NOT NULL,
   seq_no INTEGER NOT NULL,
   created_at TEXT NOT NULL,
-  approved_at TIMESTAMPTZ
+  approved_at TIMESTAMPTZ,
+  rejected_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  rejected_by_user_id TEXT REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS record_signatures (
@@ -58,6 +61,16 @@ CREATE TABLE IF NOT EXISTS evidence (
   record_id TEXT NOT NULL REFERENCES records(id) ON DELETE CASCADE,
   sha256 TEXT NOT NULL,
   ciphertext_ref TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  record_id TEXT REFERENCES records(id) ON DELETE CASCADE,
+  actor_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  action TEXT NOT NULL,
+  reason TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
