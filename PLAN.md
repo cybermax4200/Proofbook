@@ -50,7 +50,7 @@ flowchart TD
 - [x] **Day 3: Cryptographic Engine (`packages/crypto`) — Format PB1** *(Completed)*
 - [x] **Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`)** *(Completed)*
 - [x] **Day 5: Database Schema & Records API (`apps/api`)** *(Completed)*
-- [ ] **Day 6: Maker-Checker Approvals & Evidence Storage**
+- [x] **Day 6: Maker-Checker Approvals & Evidence Storage** *(Completed)*
 - [ ] **Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`)**
 - [ ] **Day 8: Auditor Workspace & Proof Bundler**
 - [ ] **Day 9: Web Application (`apps/web`)**
@@ -179,21 +179,27 @@ pnpm --filter @proofbook/api test
 
 ---
 
-### Day 6: Maker-Checker Approvals & Evidence Storage
-- [ ] Maker-checker workflow:
-  - Submit record moves status to `pending`.
-  - Author cannot approve their own record.
-  - Endpoint `POST /orgs/:id/records/:rid/approve`: Checker verifies and adds signature to `leaf_hash`.
-  - Rejection flow with audit reason logged.
-- [ ] Evidence attachment storage:
+### Day 6: Maker-Checker Approvals & Evidence Storage ✅
+- [x] Maker-checker workflow:
+  - Submit record moves status to `pending` (`POST /api/v1/orgs/:id/records/:rid/submit` & direct submission).
+  - Author cannot approve their own record (enforced by user ID and signing key ID checks).
+  - Endpoint `POST /api/v1/orgs/:id/records/:rid/approve`: Checker verifies Ed25519 signature over `leaf_hash` and appends `approver` co-signature.
+  - Rejection flow (`POST /api/v1/orgs/:id/records/:rid/reject`) with mandatory audit reason logged in `records` and `audit_logs`.
+- [x] Evidence attachment storage:
   - Abstract storage interface (`StorageProvider`).
-  - Local Encrypted File System provider for local dev.
-  - S3 / MinIO provider for production.
-  - Calculates and binds `evidence_hash: sha256:...` into canonical record fields.
+  - Local Encrypted File System provider (`EncryptedFileStorageProvider` using AES-256-GCM authenticated encryption at rest) for local dev.
+  - S3 / MinIO provider (`S3StorageProvider` using AWS Signature Version 4) for production.
+  - Calculates and binds `evidence_hash: sha256:...` into canonical record fields (`computeEvidenceHash`, `bindEvidenceField`) and serves attachments via `POST/GET /api/v1/orgs/:id/records/:rid/evidence`.
 
 **Verification:**
 ```bash
 pnpm --filter @proofbook/api test:workflow
+```
+
+```text
+▶ Storage Providers (Memory, Local Encrypted FS, and S3/MinIO) (4 tests)
+▶ Maker-Checker Approvals, Rejection Audit Trail & Evidence Storage (3 tests)
+✔ 7 tests passed across 2 test suites
 ```
 
 ---
