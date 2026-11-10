@@ -124,7 +124,6 @@ export async function buildAndAnchorCheckpoint(
   let orgKeypair = options.orgKeypair;
   if (!orgKeypair) {
     if (org.stellarAddress) {
-      // Check if fee payer is the org or if default secret matches
       if (options.feePayerKeypair && options.feePayerKeypair.publicKey() === org.stellarAddress) {
         orgKeypair = options.feePayerKeypair;
       }
@@ -132,8 +131,9 @@ export async function buildAndAnchorCheckpoint(
   }
 
   if (!orgKeypair) {
-    // Generate new keypair for org
-    orgKeypair = StellarSdk.Keypair.random();
+    // Derive deterministic keypair from orgId if not explicitly provided
+    const orgSeed = crypto.createHash('sha256').update(`proofbook:org:${orgId}`).digest();
+    orgKeypair = StellarSdk.Keypair.fromRawEd25519Seed(orgSeed);
     if (!org.stellarAddress) {
       await db
         .update(orgs)
