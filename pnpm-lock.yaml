@@ -45,6 +45,49 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
+  apps/worker:
+    dependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.2.14
+        version: 0.2.17
+      '@fastify/cors':
+        specifier: ^10.0.2
+        version: 10.1.0
+      '@proofbook/api':
+        specifier: workspace:*
+        version: link:../api
+      '@proofbook/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
+      '@stellar/stellar-sdk':
+        specifier: ^17.4.0
+        version: 17.4.0
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      drizzle-orm:
+        specifier: ^0.38.4
+        version: 0.38.4(@electric-sql/pglite@0.2.17)(@types/pg@8.23.1)(pg@8.23.1)
+      fastify:
+        specifier: ^5.2.1
+        version: 5.12.8
+      pg:
+        specifier: ^8.13.1
+        version: 8.23.1
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.0
+        version: 24.19.2
+      '@types/pg':
+        specifier: ^8.11.11
+        version: 8.23.1
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+
   cli/proofbook-cli:
     dependencies:
       '@proofbook/crypto':
@@ -432,6 +475,10 @@ packages:
   dequal@2.0.3:
     resolution: {integrity: sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==}
     engines: {node: '>=6'}
+
+  dotenv@16.6.1:
+    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+    engines: {node: '>=12'}
 
   dotenv@18.0.9:
     resolution: {integrity: sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==}
@@ -1107,6 +1154,8 @@ snapshots:
   delayed-stream@1.0.0: {}
 
   dequal@2.0.3: {}
+
+  dotenv@16.6.1: {}
 
   dotenv@18.0.9: {}
 
