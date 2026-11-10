@@ -51,7 +51,7 @@ flowchart TD
 - [x] **Day 4: Stateless Verifier & CLI (`packages/verifier`, `cli/proofbook-cli`)** *(Completed)*
 - [x] **Day 5: Database Schema & Records API (`apps/api`)** *(Completed)*
 - [x] **Day 6: Maker-Checker Approvals & Evidence Storage** *(Completed)*
-- [ ] **Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`)**
+- [x] **Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`)** *(Completed)*
 - [ ] **Day 8: Auditor Workspace & Proof Bundler**
 - [ ] **Day 9: Web Application (`apps/web`)**
 - [ ] **Day 10: Auditor UI, End-to-End Testing & Demo Drill**
@@ -204,8 +204,8 @@ pnpm --filter @proofbook/api test:workflow
 
 ---
 
-### Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`)
-- [ ] Implement `apps/worker`:
+### Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`) ✅
+- [x] Implement `apps/worker`:
   - Job runner (cron / interval / trigger endpoint).
   - Fetches approved records since previous checkpoint.
   - Calculates cumulative `record_count`.
@@ -216,7 +216,16 @@ pnpm --filter @proofbook/api test:workflow
 
 **Verification:**
 ```bash
+pnpm --filter @proofbook/worker test
 pnpm --filter @proofbook/worker run:once
+```
+
+```text
+▶ Checkpoint Builder & Merkle Persistence (3 tests)
+▶ Worker HTTP Trigger Server (4 tests)
+▶ MockSorobanAnchorClient Contract Semantics (2 tests)
+▶ CheckpointWorker Multi-Org & Interval Runner (2 tests)
+✔ 11 tests passed across 4 test suites
 ```
 
 ---
