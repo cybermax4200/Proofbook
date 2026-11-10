@@ -18,6 +18,9 @@
     "api:dev": "pnpm --filter @proofbook/api dev",
     "api:test": "pnpm --filter @proofbook/api test",
     "api:test:workflow": "pnpm --filter @proofbook/api test:workflow",
+    "worker:build": "pnpm --filter @proofbook/worker build",
+    "worker:run:once": "pnpm --filter @proofbook/worker run:once",
+    "worker:test": "pnpm --filter @proofbook/worker test",
     "cli:build": "pnpm --filter proofbook-cli build",
     "cli:test": "pnpm --filter proofbook-cli test",
     "cli:verify": "./cli/proofbook-cli/bin/proofbook verify ./spec/test-vectors/sample-bundle.json --network testnet"
