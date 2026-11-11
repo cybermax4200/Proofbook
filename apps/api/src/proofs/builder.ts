@@ -44,6 +44,17 @@ export interface GenerateProofBundleResult {
  * Generates a standardized PB1 Proof Bundle for an anchored record,
  * supporting full disclosure or selective disclosure with Merkle field inclusion proofs.
  */
+function normalizeIncomingSalt(salt: any): string | Uint8Array {
+  if (typeof salt === 'string') return salt;
+  if (salt instanceof Uint8Array) return salt;
+  if (typeof salt === 'object' && salt !== null) {
+    if (Array.isArray(salt) || '0' in salt) {
+      return new Uint8Array(Object.values(salt));
+    }
+  }
+  return salt;
+}
+
 export async function generateProofBundle(
   options: GenerateProofBundleOptions
 ): Promise<GenerateProofBundleResult> {
@@ -149,8 +160,13 @@ export async function generateProofBundle(
     throw new Error('Fields and salts are required to generate proof bundle');
   }
 
+  const cleanedSalts: Record<string, string | Uint8Array> = {};
+  for (const [k, v] of Object.entries(resolvedSalts)) {
+    cleanedSalts[k] = normalizeIncomingSalt(v);
+  }
+
   // 8. Verify field commitments & compute field root
-  const fieldRootRes = computeFieldRoot(resolvedFields, resolvedSalts);
+  const fieldRootRes = computeFieldRoot(resolvedFields, cleanedSalts as any);
   if (fieldRootRes.rootHex.toLowerCase() !== record.fieldRoot.toLowerCase()) {
     throw new Error(
       `Field root mismatch: recomputed root "${fieldRootRes.rootHex}" does not match record field_root "${record.fieldRoot}"`
@@ -176,7 +192,7 @@ export async function generateProofBundle(
         throw new Error(`Disclosed field "${fname}" does not exist in record`);
       }
       disclosed_fields[fname] = resolvedFields[fname];
-      const saltVal = resolvedSalts[fname];
+      const saltVal = cleanedSalts[fname];
       salts[fname] = typeof saltVal === 'string' ? saltVal : Buffer.from(saltVal).toString('hex');
 
       const fp = getFieldProof(fieldRootRes, fname);
@@ -185,7 +201,7 @@ export async function generateProofBundle(
   } else {
     for (const fname of allFieldNames) {
       disclosed_fields[fname] = resolvedFields[fname];
-      const saltVal = resolvedSalts[fname];
+      const saltVal = cleanedSalts[fname];
       salts[fname] = typeof saltVal === 'string' ? saltVal : Buffer.from(saltVal).toString('hex');
     }
   }
