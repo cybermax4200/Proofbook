@@ -7,6 +7,11 @@ import { authRoutes } from './auth/routes.js';
 import { orgRoutes } from './orgs/routes.js';
 import { recordRoutes } from './records/routes.js';
 import { proofRoutes } from './proofs/routes.js';
+import { auditorRoutes } from './auditor/routes.js';
+import {
+  SorobanAuditorClient,
+  createSorobanAuditorClient,
+} from './auditor/soroban.js';
 import { StorageProvider, createStorageProvider } from './records/storage.js';
 
 declare module 'fastify' {
@@ -23,6 +28,7 @@ export interface AppOptions {
   dbHandle: DatabaseHandle;
   config?: AppConfig;
   storage?: StorageProvider;
+  sorobanAuditorClient?: SorobanAuditorClient;
 }
 
 export async function buildFastifyApp(options: AppOptions): Promise<FastifyInstance> {
@@ -35,6 +41,8 @@ export async function buildFastifyApp(options: AppOptions): Promise<FastifyInsta
       storageEncryptionKey: config.storageEncryptionKey,
       s3: config.s3,
     });
+  const sorobanAuditorClient =
+    options.sorobanAuditorClient || createSorobanAuditorClient();
 
   const app = Fastify({
     logger: false,
@@ -86,11 +94,13 @@ export async function buildFastifyApp(options: AppOptions): Promise<FastifyInsta
   await app.register(async (subApp) => {
     await recordRoutes(subApp, { storage });
     await proofRoutes(subApp, { storage });
+    await auditorRoutes(subApp, { sorobanAuditorClient });
   }, { prefix: '/api/v1' });
 
-  // Direct root route aliases for standard paths (/orgs/:id/proofs)
+  // Direct root route aliases for standard paths (/orgs/:id/proofs, /engagements/:eid/...)
   await app.register(async (subApp) => {
     await proofRoutes(subApp, { storage });
+    await auditorRoutes(subApp, { sorobanAuditorClient });
   });
 
   return app;

@@ -10,6 +10,8 @@ export * from './app.js';
 export * from './records/storage.js';
 export * from './proofs/builder.js';
 export * from './proofs/routes.js';
+export * from './auditor/soroban.js';
+export * from './auditor/routes.js';
 
 export async function runServer() {
   const config = loadConfig();
