@@ -13,6 +13,8 @@ import {
   checkpoints,
   checkpointRecords,
   merkleNodes,
+  engagements,
+  checkpointWitnesses,
 } from '../src/db/index.js';
 import { eq, isNull } from 'drizzle-orm';
 
@@ -157,5 +159,59 @@ describe('Schema & Relation Constraints', () => {
     // Membership should be deleted
     const memberRows = await db.select().from(memberships).where(eq(memberships.orgId, orgId));
     assert.equal(memberRows.length, 0);
+  });
+
+  test('creates engagements and checkpoint witnesses', async () => {
+    dbHandle = await createDatabase();
+    const db = dbHandle.db;
+
+    const orgId = 'org_eng_test';
+    await db.insert(orgs).values({ id: orgId, name: 'Audit Test Org' });
+
+    const auditorUserId = 'usr_auditor_1';
+    await db.insert(users).values({ id: auditorUserId, email: 'auditor@auditfirm.com', passwordHash: 'hash' });
+
+    const engagementId = 'eng_1';
+    await db.insert(engagements).values({
+      id: engagementId,
+      orgId,
+      auditorId: auditorUserId,
+      auditorAddress: 'GBHTYTJUH6BFBVER5OHDLLYYW4KOYH6J6L7WZVIAWH74H7FSOQCEZHI5',
+      title: 'FY2026 Audit',
+      scope: JSON.stringify({ recordTypes: ['grant_disbursement'], status: 'approved' }),
+      status: 'active',
+    });
+
+    const checkpointId = 'cp_witness_test';
+    await db.insert(checkpoints).values({
+      id: checkpointId,
+      orgId,
+      onchainId: 1,
+      root: '11'.repeat(32),
+      prevRoot: '00'.repeat(32),
+      recordCount: 5,
+      periodStart: '2026-11-01T00:00:00Z',
+      periodEnd: '2026-11-08T00:00:00Z',
+    });
+
+    const witnessId = 'wit_1';
+    await db.insert(checkpointWitnesses).values({
+      id: witnessId,
+      checkpointId,
+      engagementId,
+      auditorAddress: 'GBHTYTJUH6BFBVER5OHDLLYYW4KOYH6J6L7WZVIAWH74H7FSOQCEZHI5',
+      txHash: 'tx_wit_123',
+      ledger: 10005,
+    });
+
+    const engRows = await db.select().from(engagements).where(eq(engagements.id, engagementId));
+    assert.equal(engRows.length, 1);
+    assert.equal(engRows[0].title, 'FY2026 Audit');
+    assert.deepEqual(JSON.parse(engRows[0].scope), { recordTypes: ['grant_disbursement'], status: 'approved' });
+
+    const witRows = await db.select().from(checkpointWitnesses).where(eq(checkpointWitnesses.checkpointId, checkpointId));
+    assert.equal(witRows.length, 1);
+    assert.equal(witRows[0].auditorAddress, 'GBHTYTJUH6BFBVER5OHDLLYYW4KOYH6J6L7WZVIAWH74H7FSOQCEZHI5');
+    assert.equal(witRows[0].ledger, 10005);
   });
 });

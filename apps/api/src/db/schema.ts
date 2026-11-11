@@ -154,6 +154,34 @@ export const merkleNodes = pgTable(
   ]
 );
 
+export const engagements = pgTable('engagements', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  auditorId: text('auditor_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  auditorAddress: text('auditor_address'),
+  title: text('title').notNull(),
+  scope: text('scope').notNull().default('{}'),
+  status: text('status').notNull().default('active'), // 'active' | 'completed' | 'revoked'
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const checkpointWitnesses = pgTable('checkpoint_witnesses', {
+  id: text('id').primaryKey(),
+  checkpointId: text('checkpoint_id')
+    .notNull()
+    .references(() => checkpoints.id, { onDelete: 'cascade' }),
+  engagementId: text('engagement_id')
+    .references(() => engagements.id, { onDelete: 'set null' }),
+  auditorAddress: text('auditor_address').notNull(),
+  txHash: text('tx_hash').notNull(),
+  ledger: integer('ledger').notNull(),
+  witnessedAt: timestamp('witnessed_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
@@ -180,3 +208,9 @@ export type NewAuditLog = typeof auditLogs.$inferInsert;
 
 export type Checkpoint = typeof checkpoints.$inferSelect;
 export type NewCheckpoint = typeof checkpoints.$inferInsert;
+
+export type Engagement = typeof engagements.$inferSelect;
+export type NewEngagement = typeof engagements.$inferInsert;
+
+export type CheckpointWitness = typeof checkpointWitnesses.$inferSelect;
+export type NewCheckpointWitness = typeof checkpointWitnesses.$inferInsert;

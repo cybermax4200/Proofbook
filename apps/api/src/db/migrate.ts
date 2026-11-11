@@ -103,10 +103,34 @@ CREATE TABLE IF NOT EXISTS merkle_nodes (
   PRIMARY KEY (checkpoint_id, level, idx)
 );
 
+CREATE TABLE IF NOT EXISTS engagements (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  auditor_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  auditor_address TEXT,
+  title TEXT NOT NULL,
+  scope TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS checkpoint_witnesses (
+  id TEXT PRIMARY KEY,
+  checkpoint_id TEXT NOT NULL REFERENCES checkpoints(id) ON DELETE CASCADE,
+  engagement_id TEXT REFERENCES engagements(id) ON DELETE SET NULL,
+  auditor_address TEXT NOT NULL,
+  tx_hash TEXT NOT NULL,
+  ledger INTEGER NOT NULL,
+  witnessed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_records_org_seq ON records(org_id, seq_no);
 CREATE INDEX IF NOT EXISTS idx_records_org_status ON records(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_user_keys_user ON user_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_checkpoints_org ON checkpoints(org_id);
+CREATE INDEX IF NOT EXISTS idx_engagements_org ON engagements(org_id);
+CREATE INDEX IF NOT EXISTS idx_engagements_auditor ON engagements(auditor_id);
+CREATE INDEX IF NOT EXISTS idx_checkpoint_witnesses_cp ON checkpoint_witnesses(checkpoint_id);
 `;
 
 export interface ExecutableClient {
