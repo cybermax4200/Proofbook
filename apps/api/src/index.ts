@@ -8,6 +8,8 @@ export * from './db/index.js';
 export * from './config.js';
 export * from './app.js';
 export * from './records/storage.js';
+export * from './proofs/builder.js';
+export * from './proofs/routes.js';
 
 export async function runServer() {
   const config = loadConfig();

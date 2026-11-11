@@ -6,6 +6,7 @@ import { AppConfig, loadConfig } from './config.js';
 import { authRoutes } from './auth/routes.js';
 import { orgRoutes } from './orgs/routes.js';
 import { recordRoutes } from './records/routes.js';
+import { proofRoutes } from './proofs/routes.js';
 import { StorageProvider, createStorageProvider } from './records/storage.js';
 
 declare module 'fastify' {
@@ -84,7 +85,13 @@ export async function buildFastifyApp(options: AppOptions): Promise<FastifyInsta
   await app.register(orgRoutes, { prefix: '/api/v1' });
   await app.register(async (subApp) => {
     await recordRoutes(subApp, { storage });
+    await proofRoutes(subApp, { storage });
   }, { prefix: '/api/v1' });
+
+  // Direct root route aliases for standard paths (/orgs/:id/proofs)
+  await app.register(async (subApp) => {
+    await proofRoutes(subApp, { storage });
+  });
 
   return app;
 }

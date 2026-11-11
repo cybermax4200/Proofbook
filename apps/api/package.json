@@ -23,13 +23,16 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "tsx --test test/**/*.test.ts",
-    "test:workflow": "tsx --test test/workflow.test.ts test/storage.test.ts"
+    "test:workflow": "tsx --test test/workflow.test.ts test/storage.test.ts",
+    "test:auditor": "tsx --test test/auditor.test.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.14",
     "@fastify/cors": "^10.0.2",
     "@fastify/jwt": "^9.0.4",
     "@proofbook/crypto": "workspace:*",
+    "@proofbook/verifier": "workspace:*",
+    "@stellar/stellar-sdk": "^17.4.0",
     "drizzle-orm": "^0.38.4",
     "fastify": "^5.2.1",
     "pg": "^8.13.1"

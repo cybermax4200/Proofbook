@@ -22,6 +22,12 @@ importers:
       '@proofbook/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
+      '@proofbook/verifier':
+        specifier: workspace:*
+        version: link:../../packages/verifier
+      '@stellar/stellar-sdk':
+        specifier: ^17.4.0
+        version: 17.4.0
       drizzle-orm:
         specifier: ^0.38.4
         version: 0.38.4(@electric-sql/pglite@0.2.17)(@types/pg@8.23.1)(pg@8.23.1)
