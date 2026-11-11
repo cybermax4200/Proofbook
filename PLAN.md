@@ -52,7 +52,7 @@ flowchart TD
 - [x] **Day 5: Database Schema & Records API (`apps/api`)** *(Completed)*
 - [x] **Day 6: Maker-Checker Approvals & Evidence Storage** *(Completed)*
 - [x] **Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`)** *(Completed)*
-- [ ] **Day 8: Auditor Workspace & Proof Bundler**
+- [x] **Day 8: Auditor Workspace & Proof Bundler** *(Completed)*
 - [ ] **Day 9: Web Application (`apps/web`)**
 - [ ] **Day 10: Auditor UI, End-to-End Testing & Demo Drill**
 
@@ -230,18 +230,32 @@ pnpm --filter @proofbook/worker run:once
 
 ---
 
-### Day 8: Auditor Workspace & Proof Bundler
-- [ ] Proof bundle generator endpoint: `POST /orgs/:id/proofs`.
-  - Supports selective disclosure: masks non-disclosed fields while preserving valid Merkle path.
-  - Exports standardized `bundle.json`.
-- [ ] Auditor engagement endpoints:
-  - `POST /orgs/:id/engagements`: Auditor invite and access scoping.
-  - `GET /engagements/:eid/records`: Read-only authorized record viewer.
-  - `POST /engagements/:eid/witness`: Prepares and relays on-chain `witness_checkpoint` transaction signed by auditor address.
+### Day 8: Auditor Workspace & Proof Bundler ✅
+- [x] Proof bundle generator endpoint: `POST /orgs/:id/proofs` (and `/api/v1/orgs/:id/proofs`).
+  - Supports selective disclosure: masks non-disclosed fields while generating and preserving valid Merkle field proofs (`field_proofs`).
+  - Exports standardized `bundle.json` with pre-flight verification via `@proofbook/verifier`.
+  - Supports `?download=true` query/header for immediate bundle JSON export.
+- [x] Auditor engagement endpoints:
+  - `POST /orgs/:id/engagements`: Auditor invite, role assignment, and access scoping (`recordTypes`, date window, status).
+  - `GET /orgs/:id/engagements` and `GET /engagements/:eid`: Engagement metadata and scope inspection.
+  - `GET /engagements/:eid/records`: Read-only authorized record viewer strictly enforcing engagement scope filters.
+  - `POST /engagements/:eid/witness`: Prepares and relays on-chain `witness_checkpoint` transaction signed by auditor address, preventing duplicate witnessing and verifying root consistency.
+  - Dedicated Soroban auditor client with mock and live testnet implementations.
 
 **Verification:**
 ```bash
 pnpm --filter @proofbook/api test:auditor
+```
+
+```text
+▶ Auditor Workspace & Proof Bundler
+  ✔ POST /orgs/:id/proofs generates valid full-disclosure PB1 proof bundle
+  ✔ POST /orgs/:id/proofs supports selective disclosure with Merkle field inclusion proofs
+  ✔ POST /orgs/:id/proofs supports file download via ?download=true
+  ✔ POST /orgs/:id/engagements creates auditor engagement and configures scope
+  ✔ GET /engagements/:eid/records enforces engagement scope filtering
+  ✔ POST /engagements/:eid/witness executes on-chain checkpoint witnessing flow
+✔ Auditor Workspace & Proof Bundler (6 tests passed)
 ```
 
 ---
