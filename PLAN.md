@@ -53,7 +53,7 @@ flowchart TD
 - [x] **Day 6: Maker-Checker Approvals & Evidence Storage** *(Completed)*
 - [x] **Day 7: Checkpoint Worker & Auto-Anchoring (`apps/worker`)** *(Completed)*
 - [x] **Day 8: Auditor Workspace & Proof Bundler** *(Completed)*
-- [ ] **Day 9: Web Application (`apps/web`)**
+- [x] **Day 9: Web Application (`apps/web`)** *(Completed)*
 - [ ] **Day 10: Auditor UI, End-to-End Testing & Demo Drill**
 
 ---
@@ -260,21 +260,30 @@ pnpm --filter @proofbook/api test:auditor
 
 ---
 
-### Day 9: Web Application (`apps/web`)
-- [ ] Initialize Next.js app with Tailwind CSS.
-- [ ] Client-side cryptographic helper:
-  - Generates per-field salts and computes commitments in-browser.
-  - Client-side Ed25519 signing using WebCrypto / `@noble/ed25519`.
-- [ ] Organization portal:
-  - Record entry form (amount, payee, currency, evidence upload).
-  - Maker-checker approval queue with one-click co-signing.
-- [ ] Public verification page:
-  - `/verify/:orgAddress/:checkpointId`: inspect on-chain state directly from Stellar RPC.
-  - Drag-and-drop bundle verification in browser with zero server reliance.
+### Day 9: Web Application (`apps/web`) ✅
+- [x] Initialize Next.js app with Tailwind CSS (`apps/web`).
+- [x] Client-side cryptographic helper (`apps/web/src/lib/crypto-client.ts`, `apps/web/src/lib/key-store.ts`):
+  - Generates per-field 32-byte CSPRNG salts and computes PB1 field commitments (`0x02`) and Merkle field roots in-browser.
+  - Client-side Ed25519 key generation, storage, and record leaf (`0x00`) signing/verification using WebCrypto & `@noble/ed25519`, plus AES-256-GCM payload encryption.
+- [x] Organization portal (`/portal`):
+  - Record entry form (`amount`, `payee`, `currency`, `memo`, and SHA-256 bound evidence upload) with live PB1 field commitment preview.
+  - Maker-checker approval queue enforcing separation of duties with one-click Checker Ed25519 co-signing, audit rejection logging, and selective disclosure PB1 proof bundle export.
+- [x] Public verification page (`/verify` and `/verify/:orgAddress/:checkpointId`):
+  - `/verify/:orgAddress/:checkpointId`: inspects on-chain checkpoint root, chain continuity (`prev_root`), ledger metadata, and `is_witnessed_by` auditor status directly from Stellar Soroban RPC.
+  - Drag-and-drop `bundle.json` verification in browser with zero server reliance (`apps/web/src/lib/browser-verifier.ts`).
 
 **Verification:**
 ```bash
+pnpm --filter @proofbook/web test
+pnpm --filter @proofbook/web build
 pnpm --filter @proofbook/web dev
+```
+
+```text
+▶ Client-Side Cryptographic Engine (Format PB1) (3 tests)
+▶ Organization Portal & Maker-Checker Co-Signing Workflow (2 tests)
+▶ Public Browser Verifier & Stellar Soroban Checkpoint Reader (2 tests)
+✔ 7 tests passed across 3 test suites
 ```
 
 ---
