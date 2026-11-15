@@ -6,9 +6,8 @@ Organizations keep their records private. Anyone with the right to check them (a
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Built on Stellar](https://img.shields.io/badge/built%20on-Stellar%20%2F%20Soroban-black.svg)](https://stellar.org)
-[![Status: MVP in development](https://img.shields.io/badge/status-MVP%20in%20development-orange.svg)](#13-roadmap)
-
-> **Status notice.** This README is both documentation and specification. Sections marked **(planned)** describe intended behavior that may not be implemented yet. See the [roadmap](#13-roadmap) for the current state. Do not use Proofbook for production or compliance purposes until an independent security review has been completed (see [Security](#10-security-model-and-known-limitations)).
+[![CI](https://github.com/cybermax4200/Proofbook/actions/workflows/ci.yml/badge.svg)](https://github.com/cybermax4200/Proofbook/actions/workflows/ci.yml)
+[![Status: Testnet Live](https://img.shields.io/badge/status-Testnet%20Live-brightgreen.svg)](#13-roadmap)
 
 ---
 
@@ -249,7 +248,7 @@ The author's signature covers `leaf`. Approval co-signatures also cover `leaf`, 
 - Internal nodes: `node = SHA256( 0x01 || left || right )`.
 - The `0x00` / `0x01` / `0x02` prefixes provide domain separation between leaves, internal nodes, and field commitments, which prevents second-preimage attacks that confuse leaves with internal nodes.
 - If a level has an odd number of nodes, the last node is **promoted unchanged** to the next level rather than duplicated. Duplication is a known source of ambiguity (distinct trees with the same root).
-- If a checkpoint contains exactly one record, its Merkle root is `SHA256( 0x01 || leaf || [0u8; 32] )` (or the leaf itself, as explicitly pinned in `/spec/FORMAT.md`). Empty checkpoints are not anchored.
+- If a checkpoint contains exactly one record, its Merkle root is the leaf itself (`leaves[0]`, as pinned in [`spec/FORMAT.md`](spec/FORMAT.md)). Empty checkpoints (`record_count == 0`) are rejected by the smart contract.
 
 ### 5.6 Checkpoint chain
 
@@ -323,17 +322,19 @@ fn witness_checkpoint(
     root_seen: BytesN<32>,
 ) -> Result<(), Error>;
 
+fn extend_checkpoint_ttl(env: Env, org: Address, id: u32) -> Result<(), Error>;
+
 // Reads
 fn get_checkpoint(env: Env, org: Address, id: u32) -> Result<Checkpoint, Error>;
 fn latest_checkpoint(env: Env, org: Address) -> Result<Checkpoint, Error>;
 fn is_witnessed_by(env: Env, org: Address, id: u32, auditor: Address) -> bool;
+fn get_witness_ledger(env: Env, org: Address, id: u32, auditor: Address) -> Option<u32>;
+fn is_authorized_auditor(env: Env, org: Address, auditor: Address) -> bool;
 ```
 
 `org` is a Stellar address. It can be a standard multisig account or a contract account, so organization-level approval thresholds are handled by Stellar's own authorization model rather than reimplemented in the contract.
 
-### 6.2 Reference skeleton
-
-> Illustrative skeleton showing the intended logic. Confirm all SDK calls and storage/TTL limits against the current Soroban documentation before building on it.
+### 6.2 Contract implementation (`contracts/proofbook/src/lib.rs`)
 
 ```rust
 #![no_std]
@@ -359,7 +360,7 @@ pub enum Error {
 }
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Checkpoint {
     pub id: u32,
     pub root: BytesN<32>,
@@ -372,6 +373,7 @@ pub struct Checkpoint {
 }
 
 #[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataKey {
     Org(Address),
     Latest(Address),                 // latest checkpoint id
@@ -410,6 +412,9 @@ impl Proofbook {
         if !env.storage().persistent().has(&org_key) {
             return Err(Error::OrgNotRegistered);
         }
+        if record_count == 0 {
+            return Err(Error::CountDecreased);
+        }
         if period_end < period_start {
             return Err(Error::PeriodRegression);
         }
@@ -422,7 +427,7 @@ impl Proofbook {
                     .persistent()
                     .get(&DataKey::Checkpoint(org.clone(), last_id))
                     .ok_or(Error::CheckpointNotFound)?;
-                if record_count < prev.record_count {
+                if record_count <= prev.record_count {
                     return Err(Error::CountDecreased);
                 }
                 if period_start < prev.period_end {
@@ -448,7 +453,6 @@ impl Proofbook {
         env.storage().persistent().set(&cp_key, &cp);
         env.storage().persistent().set(&latest_key, &id);
 
-        // Keep organization, checkpoint, and latest pointer persistent
         Self::bump(&env, &org_key);
         Self::bump(&env, &cp_key);
         Self::bump(&env, &latest_key);
@@ -463,10 +467,11 @@ impl Proofbook {
         if !env.storage().persistent().has(&org_key) {
             return Err(Error::OrgNotRegistered);
         }
-        let key = DataKey::Auditor(org.clone(), auditor);
+        let key = DataKey::Auditor(org.clone(), auditor.clone());
         env.storage().persistent().set(&key, &true);
         Self::bump(&env, &org_key);
         Self::bump(&env, &key);
+        env.events().publish((symbol_short!("aud_auth"), org), auditor);
         Ok(())
     }
 
@@ -476,13 +481,15 @@ impl Proofbook {
         if !env.storage().persistent().has(&org_key) {
             return Err(Error::OrgNotRegistered);
         }
-        let key = DataKey::Auditor(org.clone(), auditor);
-        if !env.storage().persistent().has(&key) {
+        let key = DataKey::Auditor(org.clone(), auditor.clone());
+        let authorized: bool = env.storage().persistent().get(&key).unwrap_or(false);
+        if !authorized {
             return Err(Error::AuditorNotAuthorized);
         }
         env.storage().persistent().set(&key, &false);
         Self::bump(&env, &org_key);
         Self::bump(&env, &key);
+        env.events().publish((symbol_short!("aud_rev"), org), auditor);
         Ok(())
     }
 
@@ -543,8 +550,39 @@ impl Proofbook {
             .has(&DataKey::Witness(org, id, auditor))
     }
 
+    pub fn get_witness_ledger(env: Env, org: Address, id: u32, auditor: Address) -> Option<u32> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Witness(org, id, auditor))
+    }
+
+    pub fn is_authorized_auditor(env: Env, org: Address, auditor: Address) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Auditor(org, auditor))
+            .unwrap_or(false)
+    }
+
+    pub fn extend_checkpoint_ttl(env: Env, org: Address, id: u32) -> Result<(), Error> {
+        let cp_key = DataKey::Checkpoint(org.clone(), id);
+        if !env.storage().persistent().has(&cp_key) {
+            return Err(Error::CheckpointNotFound);
+        }
+        let org_key = DataKey::Org(org.clone());
+        if env.storage().persistent().has(&org_key) {
+            Self::bump(&env, &org_key);
+        }
+        let latest_key = DataKey::Latest(org);
+        if env.storage().persistent().has(&latest_key) {
+            Self::bump(&env, &latest_key);
+        }
+        Self::bump(&env, &cp_key);
+        Ok(())
+    }
+
     fn bump(env: &Env, key: &DataKey) {
         env.storage().persistent().extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 }
 ```
@@ -563,8 +601,6 @@ impl Proofbook {
 ## 7. Backend API
 
 Base URL: `/api/v1`. All endpoints require authentication except `/verify/*`.
-
-> **(planned)** Endpoint shapes are a working design and may change before v1.0.
 
 ### 7.1 Authentication and organizations
 
@@ -586,6 +622,7 @@ Base URL: `/api/v1`. All endpoints require authentication except `/verify/*`.
 | GET | `/orgs/:id/records/:rid` | Get ciphertext, metadata, and signatures |
 | POST | `/orgs/:id/records/:rid/approve` | Add a checker co-signature |
 | POST | `/orgs/:id/records/:rid/reject` | Reject with reason |
+| DELETE | `/orgs/:id/records/:rid` | Crypto-shred record ciphertext and field salts |
 | POST | `/orgs/:id/records/:rid/evidence` | Upload encrypted evidence; hash bound to the record |
 
 ### 7.3 Imports and reconciliation
@@ -595,6 +632,7 @@ Base URL: `/api/v1`. All endpoints require authentication except `/verify/*`.
 | POST | `/orgs/:id/imports` | Upload a bank/mobile-money CSV or statement |
 | GET | `/orgs/:id/imports/:iid` | Parse results and match summary |
 | GET | `/orgs/:id/reconciliation` | Unmatched records and unmatched source lines |
+| POST | `/orgs/:id/flags/:fid/resolve` | Mark reconciliation flag as resolved |
 
 ### 7.4 Checkpoints and proofs
 
@@ -611,8 +649,14 @@ Base URL: `/api/v1`. All endpoints require authentication except `/verify/*`.
 | Method | Endpoint | Description |
 |---|---|---|
 | POST | `/orgs/:id/engagements` | Open an engagement, invite an auditor |
+| GET | `/orgs/:id/engagements` | List all engagements for an organization |
+| GET | `/engagements/:eid` | Get engagement details and active scope |
+| GET | `/engagements/:eid/records` | View authorized records within engagement scope |
 | POST | `/engagements/:eid/requests` | Create an evidence request |
-| POST | `/engagements/:eid/findings` | Record a finding |
+| GET | `/engagements/:eid/requests` | List evidence requests for engagement |
+| POST | `/engagements/:eid/findings` | Record an audit finding |
+| GET | `/engagements/:eid/findings` | List findings for engagement |
+| POST | `/engagements/:eid/witness` | Countersign and witness an on-chain checkpoint |
 | POST | `/engagements/:eid/report` | Generate PDF report with verification QR |
 
 ---
@@ -626,6 +670,7 @@ users(id, email, created_at)
 user_keys(id, user_id, public_key, kind, created_at, revoked_at)
 
 orgs(id, name, stellar_address, created_at)
+org_signers(id, org_id, stellar_address, label, weight, created_at)
 memberships(org_id, user_id, role)
 
 records(
@@ -640,7 +685,7 @@ evidence(id, record_id, sha256, ciphertext_ref, created_at)
 
 imports(id, org_id, source, file_ref, created_at)
 source_lines(id, import_id, date, amount, currency, description, matched_record_id)
-flags(id, record_id, kind, detail, resolved_by, resolved_at)
+flags(id, record_id, source_line_id, kind, detail, resolved_by, resolved_at)
 
 checkpoints(
   id, org_id, onchain_id, root, prev_root,
@@ -649,13 +694,12 @@ checkpoints(
 )
 checkpoint_records(checkpoint_id, record_id, leaf_index)
 merkle_nodes(checkpoint_id, level, idx, hash)      -- stored to build paths quickly
-witnesses(checkpoint_id, auditor_address, ledger, tx_hash)
+checkpoint_witnesses(id, checkpoint_id, auditor_address, ledger, tx_hash, created_at)
 
-engagements(id, org_id, auditor_user_id, status)
-requests(id, engagement_id, text, status)
-findings(id, engagement_id, severity, text)
-access_grants(id, org_id, grantee_user_id, record_scope, expires_at)
-audit_log(id, org_id, actor, action, target, at)   -- internal ops log; not the trust anchor
+engagements(id, org_id, auditor_user_id, status, scope, created_at)
+requests(id, engagement_id, text, status, created_at)
+findings(id, engagement_id, severity, text, created_at)
+audit_logs(id, org_id, actor, action, target, at)   -- internal ops log; not the trust anchor
 ```
 
 ---
@@ -704,7 +748,7 @@ audit_log(id, org_id, actor, action, target, at)   -- internal ops log; not the 
 
 ### 10.3 Vulnerability reporting
 
-Please do not open public issues for security bugs. Email `security@your-domain.example` (placeholder; set this up before launch) with details and reproduction steps. We aim to acknowledge reports within 3 business days.
+Please do not open public issues for security bugs. Email `security@proofbook.org` (or report via GitHub private vulnerability reporting) with details and reproduction steps. We aim to acknowledge reports within 3 business days.
 
 ### 10.4 Security practices
 
@@ -725,10 +769,9 @@ proofbook/
 │       └── src/test.rs
 ├── packages/
 │   ├── crypto/               # canonicalization, commitments, Merkle tree, signatures (TS)
-│   ├── verifier/             # stateless proof-bundle verification (TS), published to npm
-│   └── sdk/                  # typed client for the backend API
+│   └── verifier/             # stateless proof-bundle verification (TS), published to npm
 ├── apps/
-│   ├── api/                  # REST API (Node, Postgres)
+│   ├── api/                  # REST API (Node, Postgres / PGlite)
 │   ├── worker/               # checkpoint builder, anchoring, TTL extender, chain mirror
 │   └── web/                  # Next.js app for organizations, auditors, and public verify page
 ├── cli/
@@ -755,14 +798,14 @@ proofbook/
 - Rust (stable) and the WASM target: `rustup target add wasm32-unknown-unknown`
 - Stellar CLI (see the official Stellar docs for the current install command)
 - Node.js 20+ and pnpm
-- Docker and Docker Compose
+- Docker and Docker Compose (optional; local dev supports PGlite without Docker)
 - A funded Stellar **testnet** account
 
 ### 12.2 Clone and install
 
 ```bash
-git clone https://github.com/<your-username>/proofbook.git
-cd proofbook
+git clone https://github.com/cybermax4200/Proofbook.git
+cd Proofbook
 pnpm install
 ```
 
@@ -799,17 +842,21 @@ cp .env.example .env
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `DATABASE_URL` | Yes | | PostgreSQL connection string |
+| `DATABASE_URL` | No | In-memory PGlite | PostgreSQL connection string (falls back to PGlite locally) |
 | `STELLAR_NETWORK` | No | `testnet` | `testnet` or `mainnet` |
 | `SOROBAN_RPC_URL` | No | `https://soroban-testnet.stellar.org` | Soroban RPC endpoint |
-| `PROOFBOOK_CONTRACT_ID` | Yes | | Deployed contract ID |
-| `FEE_PAYER_SECRET` | Yes | | Platform account that pays fees; **never commit** |
-| `OBJECT_STORE_ENDPOINT` | Yes | | S3-compatible endpoint |
-| `OBJECT_STORE_BUCKET` | Yes | | Bucket for encrypted objects |
-| `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY` | Yes | | Credentials |
+| `PROOFBOOK_CONTRACT_ID` | No | Testnet demo ID | Deployed contract ID |
+| `FEE_PAYER_SECRET` | No | Testnet faucet key | Platform account that pays fees; **never commit** |
+| `OBJECT_STORE_ENDPOINT` | No | Local filesystem | S3-compatible endpoint (optional; falls back to local storage) |
+| `OBJECT_STORE_BUCKET` | No | `proofbook-dev` | Bucket for encrypted objects |
+| `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY` | No | | Credentials (if using S3-compatible storage) |
+| `STORAGE_DIR` | No | `.storage` | Local directory for encrypted payloads when not using S3 |
 | `CHECKPOINT_INTERVAL` | No | `24h` | How often the worker anchors (`1h`, `24h`, ...) |
 | `TTL_EXTEND_INTERVAL` | No | `7d` | How often on-chain entries are bumped |
-| `SESSION_SECRET` | Yes | | Session signing secret |
+| `SESSION_SECRET` | No | Dev default | Session signing secret |
+| `WORKER_API_KEY` | No | Dev default | Secret key protecting worker trigger endpoints |
+| `PORT` | No | `3001` | Fastify REST API port |
+| `WORKER_PORT` | No | `3002` | Worker HTTP trigger server port |
 
 ### 12.6 Run the stack locally
 
