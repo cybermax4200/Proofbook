@@ -128,4 +128,14 @@ describe('CheckpointWorker Multi-Org & Interval Runner', () => {
     worker.stopInterval();
     assert.equal(worker.getStatus().active, false);
   });
+
+  test('extendTtlForActiveOrgs extends TTL for anchored checkpoints', async () => {
+    await addApprovedRecord(orgAId, 1);
+    await worker.processAllOrgs();
+
+    const extended = await worker.extendTtlForActiveOrgs();
+    assert.equal(extended, 1);
+    assert.equal(mockAnchor.extendedTtls.length, 1);
+    assert.equal(mockAnchor.extendedTtls[0].checkpointId, 1);
+  });
 });

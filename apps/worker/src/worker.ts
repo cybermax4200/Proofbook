@@ -1,9 +1,11 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
+import { eq, desc } from 'drizzle-orm';
 import {
   AppDatabase,
   DatabaseHandle,
   createDatabase,
   orgs,
+  checkpoints,
 } from '@proofbook/api';
 import {
   SorobanAnchorClient,
@@ -42,9 +44,11 @@ export class CheckpointWorker {
   public orgKeypairs: Map<string, StellarSdk.Keypair>;
 
   private timer: NodeJS.Timeout | null = null;
+  private ttlTimer: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private lastRunAt: string | null = null;
   private totalAnchored = 0;
+  private totalTtlsExtended = 0;
   private lastResults: CheckpointBuildResult[] = [];
 
   constructor(options: CheckpointWorkerOptions = {}) {
@@ -148,11 +152,47 @@ export class CheckpointWorker {
   }
 
   /**
-   * Starts periodic interval runner.
+   * Extends Soroban state TTL for all organizations' active checkpoints.
+   */
+  async extendTtlForActiveOrgs(): Promise<number> {
+    if (!this.anchorClient.extendCheckpointTtl) {
+      return 0;
+    }
+
+    let extendedCount = 0;
+    const allOrgs = await this.db.select().from(orgs);
+    for (const org of allOrgs) {
+      if (!org.stellarAddress) continue;
+      const latestCpRows = await this.db
+        .select()
+        .from(checkpoints)
+        .where(eq(checkpoints.orgId, org.id))
+        .orderBy(desc(checkpoints.onchainId))
+        .limit(1);
+
+      const cp = latestCpRows[0];
+      if (cp && cp.onchainId) {
+        try {
+          await this.anchorClient.extendCheckpointTtl(org.stellarAddress, cp.onchainId);
+          extendedCount += 1;
+          this.totalTtlsExtended += 1;
+        } catch (err) {
+          console.error(`[Worker] Failed extending TTL for org ${org.id} cp #${cp.onchainId}:`, err);
+        }
+      }
+    }
+    return extendedCount;
+  }
+
+  /**
+   * Starts periodic interval runner and TTL extender.
    */
   startInterval(seconds = this.config.intervalSeconds): void {
     if (this.timer) {
       clearInterval(this.timer);
+    }
+    if (this.ttlTimer) {
+      clearInterval(this.ttlTimer);
     }
 
     console.log(`[Worker] Starting periodic checkpoint scheduler (interval: ${seconds}s)`);
@@ -161,6 +201,14 @@ export class CheckpointWorker {
         console.error('[Worker] Interval pass error:', err);
       });
     }, seconds * 1000);
+
+    if (this.config.ttlExtendIntervalSeconds > 0) {
+      this.ttlTimer = setInterval(() => {
+        this.extendTtlForActiveOrgs().catch((err) => {
+          console.error('[Worker] TTL extension pass error:', err);
+        });
+      }, this.config.ttlExtendIntervalSeconds * 1000);
+    }
   }
 
   /**
@@ -171,6 +219,10 @@ export class CheckpointWorker {
       clearInterval(this.timer);
       this.timer = null;
       console.log('[Worker] Periodic checkpoint scheduler stopped');
+    }
+    if (this.ttlTimer) {
+      clearInterval(this.ttlTimer);
+      this.ttlTimer = null;
     }
   }
 

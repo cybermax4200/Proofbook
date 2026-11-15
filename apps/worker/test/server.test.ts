@@ -134,4 +134,30 @@ describe('Worker HTTP Trigger Server', () => {
     assert.equal(body.anchored, true);
     assert.equal(body.checkpoint.orgId, orgId);
   });
+
+  test('enforces WORKER_API_KEY authentication on trigger endpoints when configured', async () => {
+    worker.config.workerApiKey = 'secret-worker-key-2026';
+
+    const unauthRes = await server.inject({
+      method: 'POST',
+      url: '/checkpoints/run',
+      payload: {},
+    });
+    assert.equal(unauthRes.statusCode, 401);
+
+    const authRes = await server.inject({
+      method: 'POST',
+      url: '/checkpoints/run',
+      headers: { authorization: 'Bearer secret-worker-key-2026' },
+      payload: {},
+    });
+    assert.equal(authRes.statusCode, 200);
+
+    const ttlRes = await server.inject({
+      method: 'POST',
+      url: '/checkpoints/extend-ttl',
+      headers: { 'x-api-key': 'secret-worker-key-2026' },
+    });
+    assert.equal(ttlRes.statusCode, 200);
+  });
 });

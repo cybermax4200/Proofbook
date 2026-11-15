@@ -131,14 +131,22 @@ export async function buildAndAnchorCheckpoint(
   }
 
   if (!orgKeypair) {
-    // Derive deterministic keypair from orgId if not explicitly provided
-    const orgSeed = crypto.createHash('sha256').update(`proofbook:org:${orgId}`).digest();
-    orgKeypair = StellarSdk.Keypair.fromRawEd25519Seed(orgSeed);
-    if (!org.stellarAddress) {
-      await db
-        .update(orgs)
-        .set({ stellarAddress: orgKeypair.publicKey() })
-        .where(eq(orgs.id, orgId));
+    if (process.env.ORG_SECRET && process.env.ORG_SECRET.trim().startsWith('S')) {
+      orgKeypair = StellarSdk.Keypair.fromSecret(process.env.ORG_SECRET.trim());
+    } else if (anchorClient.constructor?.name === 'MockSorobanAnchorClient') {
+      // Only in offline mock mode: generate a mock keypair for testing
+      const mockSeed = crypto.createHash('sha256').update(`mock:org:${orgId}`).digest();
+      orgKeypair = StellarSdk.Keypair.fromRawEd25519Seed(mockSeed);
+      if (!org.stellarAddress) {
+        await db
+          .update(orgs)
+          .set({ stellarAddress: orgKeypair.publicKey() })
+          .where(eq(orgs.id, orgId));
+      }
+    } else {
+      throw new Error(
+        `Missing authorized organization keypair or ORG_SECRET for organization "${orgId}". Refusing to derive private key from orgId in live mode.`
+      );
     }
   }
 

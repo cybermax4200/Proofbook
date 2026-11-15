@@ -10,9 +10,24 @@ export interface WorkerConfig {
   contractId?: string;
   feePayerSecret?: string;
   defaultOrgSecret?: string;
+  workerApiKey?: string;
   port: number;
   intervalSeconds: number;
+  ttlExtendIntervalSeconds: number;
   skipBlockchain: boolean;
+}
+
+function parseDurationSeconds(raw: string | undefined, fallbackSeconds: number): number {
+  if (!raw) return fallbackSeconds;
+  const trimmed = raw.trim().toLowerCase();
+  const match = trimmed.match(/^(\d+)\s*(s|m|h|d)?$/);
+  if (!match) return fallbackSeconds;
+  const val = parseInt(match[1], 10);
+  const unit = match[2] || 's';
+  if (unit === 'd') return val * 86400;
+  if (unit === 'h') return val * 3600;
+  if (unit === 'm') return val * 60;
+  return val;
 }
 
 export const DEFAULT_RPC_URL = 'https://soroban-testnet.stellar.org';
@@ -51,8 +66,16 @@ export function loadWorkerConfig(): WorkerConfig {
     contractId: process.env.PROOFBOOK_CONTRACT_ID?.trim(),
     feePayerSecret: process.env.FEE_PAYER_SECRET?.trim(),
     defaultOrgSecret: process.env.ORG_SECRET?.trim(),
+    workerApiKey: process.env.WORKER_API_KEY?.trim(),
     port: parseInt(process.env.WORKER_PORT || '3002', 10),
-    intervalSeconds: parseInt(process.env.WORKER_INTERVAL_SECONDS || '60', 10),
+    intervalSeconds: parseDurationSeconds(
+      process.env.WORKER_INTERVAL_SECONDS || process.env.CHECKPOINT_INTERVAL,
+      60
+    ),
+    ttlExtendIntervalSeconds: parseDurationSeconds(
+      process.env.TTL_EXTEND_INTERVAL || process.env.WORKER_TTL_INTERVAL_SECONDS,
+      604800
+    ),
     skipBlockchain: !!skipBlockchain,
   };
 }

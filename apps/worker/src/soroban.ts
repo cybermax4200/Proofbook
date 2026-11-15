@@ -39,6 +39,7 @@ export interface SorobanAnchorClient {
   registerOrg(orgKeypair: StellarSdk.Keypair, feePayerKeypair?: StellarSdk.Keypair): Promise<{ txHash?: string; alreadyRegistered?: boolean }>;
   anchorCheckpoint(params: AnchorCheckpointParams): Promise<AnchorResult>;
   getLatestCheckpoint(orgAddress: string): Promise<OnChainCheckpoint | null>;
+  extendCheckpointTtl?(orgAddress: string, checkpointId: number): Promise<void>;
 }
 
 export interface StellarSorobanClientOptions {
@@ -242,6 +243,26 @@ export class StellarSorobanAnchorClient implements SorobanAnchorClient {
       timestamp: BigInt(raw.timestamp),
     };
   }
+
+  async extendCheckpointTtl(orgAddress: string, checkpointId: number): Promise<void> {
+    if (!this.feePayer) {
+      return;
+    }
+    const feePayerAcc = await this.getAccount(this.feePayer.publicKey());
+    const orgAddressScVal = new StellarSdk.Address(orgAddress).toScVal();
+    const idScVal = StellarSdk.nativeToScVal(checkpointId, { type: 'u32' });
+    const tx = new StellarSdk.TransactionBuilder(feePayerAcc, {
+      fee: '1000000',
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(this.contract.call('extend_checkpoint_ttl', orgAddressScVal, idScVal))
+      .setTimeout(60)
+      .build();
+
+    const preparedTx = await this.server.prepareTransaction(tx);
+    preparedTx.sign(this.feePayer);
+    await this.sendAndPoll(preparedTx);
+  }
 }
 
 /**
@@ -250,7 +271,12 @@ export class StellarSorobanAnchorClient implements SorobanAnchorClient {
 export class MockSorobanAnchorClient implements SorobanAnchorClient {
   public registeredOrgs = new Set<string>();
   public checkpointsByOrg = new Map<string, OnChainCheckpoint[]>();
+  public extendedTtls: Array<{ orgAddress: string; checkpointId: number }> = [];
   public currentLedger = 1000000;
+
+  async extendCheckpointTtl(orgAddress: string, checkpointId: number): Promise<void> {
+    this.extendedTtls.push({ orgAddress, checkpointId });
+  }
 
   async registerOrg(orgKeypair: StellarSdk.Keypair): Promise<{ txHash?: string; alreadyRegistered?: boolean }> {
     const pub = orgKeypair.publicKey();
