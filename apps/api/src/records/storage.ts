@@ -9,9 +9,20 @@ export interface StorageProvider {
 }
 
 function normalizeStorageKey(key: string): string {
-  return key
+  const stripped = key
     .replace(/^(memory|file|storage|encrypted-fs):\/\//, '')
-    .replace(/^s3:\/\/[^/]+\//, '');
+    .replace(/^s3:\/\/[^/]+\//, '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '');
+
+  const segments = stripped.split('/');
+  if (
+    !stripped ||
+    segments.some((seg) => seg.length === 0 || seg === '.' || seg === '..' || seg.includes('\0'))
+  ) {
+    throw new Error(`Invalid or unsafe storage key: "${key}"`);
+  }
+  return stripped;
 }
 
 export class MemoryStorageProvider implements StorageProvider {
@@ -44,7 +55,12 @@ export class FileStorageProvider implements StorageProvider {
 
   private resolvePath(key: string): string {
     const normalizedKey = normalizeStorageKey(key);
-    return path.join(this.baseDir, normalizedKey);
+    const resolved = path.resolve(this.baseDir, normalizedKey);
+    const baseWithSep = this.baseDir.endsWith(path.sep) ? this.baseDir : this.baseDir + path.sep;
+    if (!resolved.startsWith(baseWithSep)) {
+      throw new Error(`Path traversal detected in storage key: "${key}"`);
+    }
+    return resolved;
   }
 
   async put(key: string, data: string | Buffer): Promise<string> {
@@ -94,7 +110,12 @@ export class EncryptedFileStorageProvider implements StorageProvider {
 
   resolvePath(key: string): string {
     const normalizedKey = normalizeStorageKey(key);
-    return path.join(this.baseDir, normalizedKey);
+    const resolved = path.resolve(this.baseDir, normalizedKey);
+    const baseWithSep = this.baseDir.endsWith(path.sep) ? this.baseDir : this.baseDir + path.sep;
+    if (!resolved.startsWith(baseWithSep)) {
+      throw new Error(`Path traversal detected in storage key: "${key}"`);
+    }
+    return resolved;
   }
 
   async put(key: string, data: string | Buffer): Promise<string> {

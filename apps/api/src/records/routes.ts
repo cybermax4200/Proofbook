@@ -7,6 +7,9 @@ import {
   userKeys,
   evidence,
   auditLogs,
+  imports,
+  sourceLines,
+  flags,
 } from '../db/schema.js';
 import { requireOrgRole } from '../auth/middleware.js';
 import {
@@ -110,6 +113,12 @@ export async function recordRoutes(app: FastifyInstance, options: RecordRoutesOp
       }
 
       const recordId = body.recordId || 'rec_' + crypto.randomUUID().replace(/-/g, '');
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(recordId)) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Invalid recordId: only alphanumeric characters, underscores, and hyphens are allowed',
+        });
+      }
       const createdAt = body.createdAt || new Date().toISOString();
       const type = body.type || 'default';
 
@@ -575,6 +584,12 @@ export async function recordRoutes(app: FastifyInstance, options: RecordRoutesOp
       }
 
       const evidenceId = body.id || 'ev_' + crypto.randomUUID().replace(/-/g, '');
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(evidenceId)) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Invalid evidence id: only alphanumeric characters, underscores, and hyphens are allowed',
+        });
+      }
       const storageKey = `evidence/${orgId}/${recordId}/${evidenceId}.bin`;
       const ciphertextRef = await storage.put(storageKey, body.ciphertext);
 
@@ -726,7 +741,7 @@ export async function recordRoutes(app: FastifyInstance, options: RecordRoutesOp
         .orderBy(asc(auditLogs.createdAt));
 
       // Fetch ciphertext from storage
-      const ciphertext = await storage.get(record.ciphertextRef);
+      const ciphertext = record.status === 'shredded' ? null : await storage.get(record.ciphertextRef);
 
       return {
         record,
@@ -735,6 +750,357 @@ export async function recordRoutes(app: FastifyInstance, options: RecordRoutesOp
         evidence: evidenceRows,
         auditLogs: logs,
         ciphertext,
+      };
+    }
+  );
+
+  // Crypto-shred a record: delete encrypted payload and evidence blobs while preserving leaf_hash and Merkle tree integrity
+  app.delete(
+    '/orgs/:id/records/:rid',
+    { preHandler: [requireOrgRole(['admin'])] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id: orgId, rid: recordId } = request.params as { id: string; rid: string };
+      const userId = request.user.id;
+      const body = (request.body || {}) as { reason?: string };
+
+      const rows = await request.db
+        .select()
+        .from(records)
+        .where(and(eq(records.id, recordId), eq(records.orgId, orgId)));
+
+      if (rows.length === 0) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Record not found' });
+      }
+
+      const record = rows[0];
+      if (record.status === 'shredded') {
+        return reply.status(409).send({ error: 'Conflict', message: 'Record has already been shredded' });
+      }
+
+      // Delete primary ciphertext blob
+      try {
+        await storage.delete(record.ciphertextRef);
+      } catch {
+        // Ignore if already absent
+      }
+
+      // Delete any attached evidence blobs
+      const evRows = await request.db
+        .select()
+        .from(evidence)
+        .where(eq(evidence.recordId, recordId));
+      for (const ev of evRows) {
+        try {
+          await storage.delete(ev.ciphertextRef);
+        } catch {
+          // Ignore if already absent
+        }
+      }
+
+      await request.db
+        .update(records)
+        .set({ status: 'shredded', ciphertextRef: 'shredded://deleted' })
+        .where(eq(records.id, recordId));
+
+      await request.db.insert(auditLogs).values({
+        id: 'aud_' + crypto.randomUUID().replace(/-/g, ''),
+        orgId,
+        recordId,
+        actorId: userId,
+        action: 'record.shredded',
+        reason: body.reason || 'Crypto-shredded per data retention / privacy policy',
+      });
+
+      const updatedRows = await request.db.select().from(records).where(eq(records.id, recordId));
+
+      return {
+        shredded: true,
+        record: updatedRows[0],
+      };
+    }
+  );
+
+  // Import CSV / statement lines and automatically reconcile against organization records
+  app.post(
+    '/orgs/:id/imports',
+    { preHandler: [requireOrgRole(['admin', 'maker', 'checker'])] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id: orgId } = request.params as { id: string };
+      const body = request.body as {
+        source?: string;
+        csv?: string;
+        lines?: Array<{ date: string; amount: string; currency?: string; description?: string }>;
+      };
+
+      const source = body?.source?.trim() || 'csv_statement';
+      let parsedLines: Array<{ date: string; amount: string; currency: string; description: string }> = [];
+
+      if (Array.isArray(body?.lines)) {
+        parsedLines = body.lines.map((l) => ({
+          date: String(l.date || '').trim(),
+          amount: String(l.amount || '').trim(),
+          currency: String(l.currency || 'USD').trim().toUpperCase(),
+          description: String(l.description || '').trim(),
+        }));
+      } else if (typeof body?.csv === 'string' && body.csv.trim().length > 0) {
+        const rawLines = body.csv
+          .trim()
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
+        for (let i = 0; i < rawLines.length; i++) {
+          const cols = rawLines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+          if (i === 0 && cols[0]?.toLowerCase() === 'date') {
+            continue;
+          }
+          if (cols.length >= 2) {
+            parsedLines.push({
+              date: cols[0],
+              amount: cols[1],
+              currency: (cols[2] || 'USD').toUpperCase(),
+              description: cols.slice(3).join(', '),
+            });
+          }
+        }
+      } else {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Either csv string or lines array is required',
+        });
+      }
+
+      const importId = 'imp_' + crypto.randomUUID().replace(/-/g, '');
+      const rawPayload = body.csv || JSON.stringify(parsedLines);
+      const fileRef = await storage.put(`imports/${orgId}/${importId}.dat`, rawPayload);
+
+      await request.db.insert(imports).values({
+        id: importId,
+        orgId,
+        source,
+        fileRef,
+      });
+
+      // Load organization records & try to extract amount/currency from readable payloads for matching
+      const orgRecords = await request.db
+        .select()
+        .from(records)
+        .where(eq(records.orgId, orgId));
+
+      const recordMeta: Array<{
+        id: string;
+        createdAt: string;
+        amount?: string;
+        currency?: string;
+        payee?: string;
+        matched: boolean;
+      }> = [];
+
+      for (const rec of orgRecords) {
+        if (rec.status === 'shredded' || rec.status === 'rejected') continue;
+        let amount: string | undefined;
+        let currency: string | undefined;
+        let payee: string | undefined;
+        try {
+          const raw = await storage.get(rec.ciphertextRef);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const fields = parsed.fields || parsed.data?.fields || {};
+            amount = fields.amount;
+            currency = fields.currency?.toUpperCase();
+            payee = fields.payee;
+          }
+        } catch {
+          // Encrypted payload
+        }
+        recordMeta.push({
+          id: rec.id,
+          createdAt: rec.createdAt,
+          amount,
+          currency,
+          payee,
+          matched: false,
+        });
+      }
+
+      const createdLines = [];
+      const createdFlags = [];
+
+      for (const item of parsedLines) {
+        const lineId = 'sl_' + crypto.randomUUID().replace(/-/g, '');
+        // Match by exact amount + currency, or by record ID mentioned in description
+        let match = recordMeta.find(
+          (r) =>
+            !r.matched &&
+            ((r.amount === item.amount && (!r.currency || r.currency === item.currency)) ||
+              (item.description && item.description.includes(r.id)))
+        );
+
+        let matchedRecordId: string | null = null;
+        let pendingFlag: {
+          id: string;
+          orgId: string;
+          recordId: string | null;
+          sourceLineId: string;
+          kind: string;
+          detail: string;
+        } | null = null;
+
+        if (match) {
+          match.matched = true;
+          matchedRecordId = match.id;
+          // Check if amount differs when matched by record ID
+          if (match.amount && match.amount !== item.amount) {
+            const flagId = 'flg_' + crypto.randomUUID().replace(/-/g, '');
+            pendingFlag = {
+              id: flagId,
+              orgId,
+              recordId: match.id,
+              sourceLineId: lineId,
+              kind: 'amount_mismatch',
+              detail: `Statement line amount ${item.amount} ${item.currency} does not match record amount ${match.amount}`,
+            };
+          }
+        } else {
+          const flagId = 'flg_' + crypto.randomUUID().replace(/-/g, '');
+          pendingFlag = {
+            id: flagId,
+            orgId,
+            recordId: null,
+            sourceLineId: lineId,
+            kind: 'unmatched_line',
+            detail: `Unmatched statement line on ${item.date}: ${item.amount} ${item.currency} (${item.description || 'no description'})`,
+          };
+        }
+
+        const lineRow = {
+          id: lineId,
+          importId,
+          date: item.date,
+          amount: item.amount,
+          currency: item.currency,
+          description: item.description,
+          matchedRecordId,
+        };
+        await request.db.insert(sourceLines).values(lineRow);
+        createdLines.push(lineRow);
+
+        if (pendingFlag) {
+          await request.db.insert(flags).values(pendingFlag);
+          createdFlags.push(pendingFlag);
+        }
+      }
+
+      return reply.status(201).send({
+        import: {
+          id: importId,
+          orgId,
+          source,
+          fileRef,
+        },
+        lines: createdLines,
+        flags: createdFlags,
+        matchedCount: createdLines.filter((l) => l.matchedRecordId !== null).length,
+        unmatchedCount: createdLines.filter((l) => l.matchedRecordId === null).length,
+      });
+    }
+  );
+
+  // Get specific import and its source lines
+  app.get(
+    '/orgs/:id/imports/:iid',
+    { preHandler: [requireOrgRole([])] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id: orgId, iid: importId } = request.params as { id: string; iid: string };
+
+      const impRows = await request.db
+        .select()
+        .from(imports)
+        .where(and(eq(imports.id, importId), eq(imports.orgId, orgId)));
+
+      if (impRows.length === 0) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Import not found' });
+      }
+
+      const lines = await request.db
+        .select()
+        .from(sourceLines)
+        .where(eq(sourceLines.importId, importId));
+
+      return {
+        import: impRows[0],
+        lines,
+      };
+    }
+  );
+
+  // Get reconciliation status and flags for an organization
+  app.get(
+    '/orgs/:id/reconciliation',
+    { preHandler: [requireOrgRole([])] },
+    async (request: FastifyRequest) => {
+      const { id: orgId } = request.params as { id: string };
+
+      const orgImports = await request.db
+        .select()
+        .from(imports)
+        .where(eq(imports.orgId, orgId))
+        .orderBy(desc(imports.createdAt));
+
+      const orgFlags = await request.db
+        .select()
+        .from(flags)
+        .where(eq(flags.orgId, orgId))
+        .orderBy(desc(flags.createdAt));
+
+      return {
+        imports: orgImports,
+        flags: orgFlags,
+        openFlagsCount: orgFlags.filter((f) => !f.resolvedAt).length,
+        resolvedFlagsCount: orgFlags.filter((f) => Boolean(f.resolvedAt)).length,
+      };
+    }
+  );
+
+  // Resolve a reconciliation mismatch flag
+  app.post(
+    '/orgs/:id/flags/:fid/resolve',
+    { preHandler: [requireOrgRole(['admin', 'checker'])] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id: orgId, fid: flagId } = request.params as { id: string; fid: string };
+      const userId = request.user.id;
+      const body = (request.body || {}) as { note?: string };
+
+      const flagRows = await request.db
+        .select()
+        .from(flags)
+        .where(and(eq(flags.id, flagId), eq(flags.orgId, orgId)));
+
+      if (flagRows.length === 0) {
+        return reply.status(404).send({ error: 'Not Found', message: 'Reconciliation flag not found' });
+      }
+
+      const resolvedAt = new Date();
+      await request.db
+        .update(flags)
+        .set({
+          resolvedBy: userId,
+          resolvedAt,
+          resolutionNote: body.note || 'Resolved',
+        })
+        .where(eq(flags.id, flagId));
+
+      await request.db.insert(auditLogs).values({
+        id: 'aud_' + crypto.randomUUID().replace(/-/g, ''),
+        orgId,
+        recordId: flagRows[0].recordId,
+        actorId: userId,
+        action: 'flag.resolved',
+        reason: body.note || `Resolved flag ${flagId}`,
+      });
+
+      const updated = await request.db.select().from(flags).where(eq(flags.id, flagId));
+      return {
+        flag: updated[0],
       };
     }
   );

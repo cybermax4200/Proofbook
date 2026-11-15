@@ -11,6 +11,8 @@ import {
   checkpointRecords,
   checkpointWitnesses,
   engagements,
+  engagementRequests,
+  engagementFindings,
   auditLogs,
   recordSignatures,
 } from '../db/schema.js';
@@ -594,4 +596,218 @@ export async function auditorRoutes(app: FastifyInstance, options: AuditorRoutes
   };
 
   app.post('/engagements/:eid/witness', { preHandler: [app.authenticate] }, witnessHandler);
+
+  // 6. POST /engagements/:eid/requests: Create an information request in an engagement
+  app.post(
+    '/engagements/:eid/requests',
+    { preHandler: [app.authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { eid } = request.params as { eid: string };
+      const check = await getAuthorizedEngagement(request, eid);
+      if (check.error || !check.engagement) {
+        return reply.status(check.status || 403).send({ error: check.error, message: check.message });
+      }
+
+      const body = request.body as { text?: string; status?: string; response?: string };
+      if (!body?.text || !body.text.trim()) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Missing required field: text',
+        });
+      }
+
+      const reqId = 'req_' + crypto.randomUUID().replace(/-/g, '');
+      const status = body.status || 'open';
+
+      await request.db.insert(engagementRequests).values({
+        id: reqId,
+        engagementId: eid,
+        text: body.text.trim(),
+        status,
+        response: body.response || null,
+      });
+
+      const created = await request.db
+        .select()
+        .from(engagementRequests)
+        .where(eq(engagementRequests.id, reqId));
+
+      return reply.status(201).send({
+        request: created[0],
+      });
+    }
+  );
+
+  // 7. GET /engagements/:eid/requests: List information requests for an engagement
+  app.get(
+    '/engagements/:eid/requests',
+    { preHandler: [app.authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { eid } = request.params as { eid: string };
+      const check = await getAuthorizedEngagement(request, eid);
+      if (check.error || !check.engagement) {
+        return reply.status(check.status || 403).send({ error: check.error, message: check.message });
+      }
+
+      const rows = await request.db
+        .select()
+        .from(engagementRequests)
+        .where(eq(engagementRequests.engagementId, eid))
+        .orderBy(desc(engagementRequests.createdAt));
+
+      return {
+        requests: rows,
+        count: rows.length,
+      };
+    }
+  );
+
+  // 8. POST /engagements/:eid/findings: Log an audit finding in an engagement
+  app.post(
+    '/engagements/:eid/findings',
+    { preHandler: [app.authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { eid } = request.params as { eid: string };
+      const check = await getAuthorizedEngagement(request, eid);
+      if (check.error || !check.engagement) {
+        return reply.status(check.status || 403).send({ error: check.error, message: check.message });
+      }
+
+      const body = request.body as {
+        severity?: string;
+        text?: string;
+        recordId?: string;
+      };
+
+      if (!body?.text || !body.text.trim()) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'Missing required field: text',
+        });
+      }
+
+      const validSeverities = ['info', 'low', 'medium', 'high', 'critical'];
+      const severity = (body.severity || 'info').toLowerCase();
+      if (!validSeverities.includes(severity)) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: `Invalid severity "${body.severity}". Allowed: ${validSeverities.join(', ')}`,
+        });
+      }
+
+      const findingId = 'fnd_' + crypto.randomUUID().replace(/-/g, '');
+      await request.db.insert(engagementFindings).values({
+        id: findingId,
+        engagementId: eid,
+        severity,
+        text: body.text.trim(),
+        recordId: body.recordId || null,
+      });
+
+      const created = await request.db
+        .select()
+        .from(engagementFindings)
+        .where(eq(engagementFindings.id, findingId));
+
+      return reply.status(201).send({
+        finding: created[0],
+      });
+    }
+  );
+
+  // 9. GET /engagements/:eid/findings: List audit findings for an engagement
+  app.get(
+    '/engagements/:eid/findings',
+    { preHandler: [app.authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { eid } = request.params as { eid: string };
+      const check = await getAuthorizedEngagement(request, eid);
+      if (check.error || !check.engagement) {
+        return reply.status(check.status || 403).send({ error: check.error, message: check.message });
+      }
+
+      const rows = await request.db
+        .select()
+        .from(engagementFindings)
+        .where(eq(engagementFindings.engagementId, eid))
+        .orderBy(desc(engagementFindings.createdAt));
+
+      return {
+        findings: rows,
+        count: rows.length,
+      };
+    }
+  );
+
+  // 10. POST /engagements/:eid/report: Generate comprehensive audit engagement report
+  app.post(
+    '/engagements/:eid/report',
+    { preHandler: [app.authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { eid } = request.params as { eid: string };
+      const check = await getAuthorizedEngagement(request, eid);
+      if (check.error || !check.engagement) {
+        return reply.status(check.status || 403).send({ error: check.error, message: check.message });
+      }
+
+      const eng = check.engagement;
+      const orgRows = await request.db.select().from(orgs).where(eq(orgs.id, eng.orgId));
+      const org = orgRows[0] || { id: eng.orgId, name: eng.orgId, stellarAddress: null };
+
+      const cpRows = await request.db
+        .select()
+        .from(checkpoints)
+        .where(eq(checkpoints.orgId, eng.orgId))
+        .orderBy(desc(checkpoints.onchainId));
+
+      const witRows = await request.db
+        .select()
+        .from(checkpointWitnesses)
+        .where(eq(checkpointWitnesses.engagementId, eid));
+
+      const reqRows = await request.db
+        .select()
+        .from(engagementRequests)
+        .where(eq(engagementRequests.engagementId, eid));
+
+      const fndRows = await request.db
+        .select()
+        .from(engagementFindings)
+        .where(eq(engagementFindings.engagementId, eid));
+
+      const generatedAt = new Date().toISOString();
+      const reportPayload = {
+        version: 'PB1-AUDIT-REPORT',
+        generatedAt,
+        engagement: {
+          id: eng.id,
+          title: eng.title,
+          status: eng.status,
+          auditorId: eng.auditorId,
+          auditorAddress: eng.auditorAddress,
+          scope: JSON.parse(eng.scope),
+        },
+        organization: {
+          id: org.id,
+          name: org.name,
+          stellarAddress: org.stellarAddress,
+        },
+        checkpoints: cpRows,
+        witnesses: witRows,
+        requests: reqRows,
+        findings: fndRows,
+      };
+
+      const reportDigest =
+        'sha256:' +
+        crypto.createHash('sha256').update(JSON.stringify(reportPayload)).digest('hex');
+
+      return reply.status(200).send({
+        report: {
+          ...reportPayload,
+          digest: reportDigest,
+        },
+      });
+    }
+  );
 }

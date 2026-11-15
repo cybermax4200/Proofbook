@@ -182,6 +182,76 @@ export const checkpointWitnesses = pgTable('checkpoint_witnesses', {
   witnessedAt: timestamp('witnessed_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const orgSigners = pgTable('org_signers', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  stellarAddress: text('stellar_address').notNull(),
+  publicKey: text('public_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+});
+
+export const engagementRequests = pgTable('requests', {
+  id: text('id').primaryKey(),
+  engagementId: text('engagement_id')
+    .notNull()
+    .references(() => engagements.id, { onDelete: 'cascade' }),
+  text: text('text').notNull(),
+  status: text('status').notNull().default('open'), // 'open' | 'responded' | 'closed'
+  response: text('response'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const engagementFindings = pgTable('findings', {
+  id: text('id').primaryKey(),
+  engagementId: text('engagement_id')
+    .notNull()
+    .references(() => engagements.id, { onDelete: 'cascade' }),
+  severity: text('severity').notNull().default('info'), // 'info' | 'low' | 'medium' | 'high' | 'critical'
+  text: text('text').notNull(),
+  recordId: text('record_id').references(() => records.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const imports = pgTable('imports', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  source: text('source').notNull(),
+  fileRef: text('file_ref').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const sourceLines = pgTable('source_lines', {
+  id: text('id').primaryKey(),
+  importId: text('import_id')
+    .notNull()
+    .references(() => imports.id, { onDelete: 'cascade' }),
+  date: text('date').notNull(),
+  amount: text('amount').notNull(),
+  currency: text('currency').notNull().default('USD'),
+  description: text('description').notNull().default(''),
+  matchedRecordId: text('matched_record_id').references(() => records.id, { onDelete: 'set null' }),
+});
+
+export const flags = pgTable('flags', {
+  id: text('id').primaryKey(),
+  orgId: text('org_id')
+    .notNull()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  recordId: text('record_id').references(() => records.id, { onDelete: 'cascade' }),
+  sourceLineId: text('source_line_id').references(() => sourceLines.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), // 'unmatched_line' | 'amount_mismatch' | 'unmatched_record' | 'duplicate'
+  detail: text('detail').notNull(),
+  resolvedBy: text('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolutionNote: text('resolution_note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 

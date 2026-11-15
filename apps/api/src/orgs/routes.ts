@@ -1,8 +1,9 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import crypto from 'node:crypto';
 import { eq, and } from 'drizzle-orm';
-import { orgs, memberships, users } from '../db/schema.js';
+import { orgs, memberships, users, orgSigners } from '../db/schema.js';
 import { requireOrgRole } from '../auth/middleware.js';
+import { decodePublicKey, encodeStellarPublicKey } from '@proofbook/crypto';
 
 const VALID_ROLES = ['admin', 'maker', 'checker', 'auditor'] as const;
 type Role = (typeof VALID_ROLES)[number];
@@ -156,6 +157,104 @@ export async function orgRoutes(app: FastifyInstance) {
           userId: targetUser.id,
           email: targetUser.email,
           role: body.role,
+        },
+      });
+    }
+  );
+
+  // Update member role by userId (requires admin)
+  app.patch(
+    '/orgs/:id/members/:uid',
+    { preHandler: [requireOrgRole(['admin'])] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id, uid } = request.params as { id: string; uid: string };
+      const body = request.body as { role?: string };
+
+      if (!body?.role || !VALID_ROLES.includes(body.role as Role)) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: `Invalid role "${body?.role}". Allowed roles: ${VALID_ROLES.join(', ')}`,
+        });
+      }
+
+      const existing = await request.db
+        .select()
+        .from(memberships)
+        .where(and(eq(memberships.orgId, id), eq(memberships.userId, uid)));
+
+      if (existing.length === 0) {
+        return reply.status(404).send({
+          error: 'Not Found',
+          message: 'Organization member not found',
+        });
+      }
+
+      await request.db
+        .update(memberships)
+        .set({ role: body.role })
+        .where(and(eq(memberships.orgId, id), eq(memberships.userId, uid)));
+
+      return {
+        success: true,
+        member: {
+          orgId: id,
+          userId: uid,
+          role: body.role,
+        },
+      };
+    }
+  );
+
+  // Register organization Stellar signer (requires admin)
+  app.post(
+    '/orgs/:id/signers',
+    { preHandler: [requireOrgRole(['admin'])] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const body = request.body as { stellarAddress?: string; publicKey?: string };
+
+      const inputKey = body?.stellarAddress || body?.publicKey;
+      if (!inputKey) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: 'stellarAddress or publicKey is required',
+        });
+      }
+
+      let rawPubKey: Uint8Array;
+      try {
+        rawPubKey = decodePublicKey(inputKey);
+      } catch (err: any) {
+        return reply.status(400).send({
+          error: 'Bad Request',
+          message: `Invalid signer public key: ${err.message}`,
+        });
+      }
+
+      const stellarAddress = body.stellarAddress?.startsWith('G')
+        ? body.stellarAddress.trim()
+        : encodeStellarPublicKey(rawPubKey);
+      const publicKeyHex = Buffer.from(rawPubKey).toString('hex');
+
+      const signerId = 'sigkey_' + crypto.randomUUID().replace(/-/g, '');
+      await request.db.insert(orgSigners).values({
+        id: signerId,
+        orgId: id,
+        stellarAddress,
+        publicKey: publicKeyHex,
+      });
+
+      await request.db
+        .update(orgs)
+        .set({ stellarAddress })
+        .where(eq(orgs.id, id));
+
+      return reply.status(201).send({
+        signer: {
+          id: signerId,
+          orgId: id,
+          stellarAddress,
+          publicKey: publicKeyHex,
         },
       });
     }

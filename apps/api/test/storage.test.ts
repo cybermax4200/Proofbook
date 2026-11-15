@@ -138,4 +138,19 @@ describe('Storage Providers (Memory, Local Encrypted FS, and S3/MinIO)', () => {
     });
     assert.ok(s3 instanceof S3StorageProvider);
   });
+
+  test('rejects path traversal in storage keys across providers', async () => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'proofbook-traversal-'));
+    try {
+      const fsProv = new FileStorageProvider(tmpDir);
+      const encProv = new EncryptedFileStorageProvider(tmpDir, 'key');
+      const memProv = new MemoryStorageProvider();
+
+      await assert.rejects(() => fsProv.put('records/org/../../../etc/passwd', 'pwn'), /Invalid or unsafe storage key/);
+      await assert.rejects(() => encProv.put('../outside.bin', 'pwn'), /Invalid or unsafe storage key/);
+      await assert.rejects(() => memProv.put('a/./b', 'pwn'), /Invalid or unsafe storage key/);
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

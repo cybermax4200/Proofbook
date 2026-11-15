@@ -124,13 +124,77 @@ CREATE TABLE IF NOT EXISTS checkpoint_witnesses (
   witnessed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_records_org_seq ON records(org_id, seq_no);
+CREATE TABLE IF NOT EXISTS org_signers (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  stellar_address TEXT NOT NULL,
+  public_key TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  revoked_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS requests (
+  id TEXT PRIMARY KEY,
+  engagement_id TEXT NOT NULL REFERENCES engagements(id) ON DELETE CASCADE,
+  text TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  response TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS findings (
+  id TEXT PRIMARY KEY,
+  engagement_id TEXT NOT NULL REFERENCES engagements(id) ON DELETE CASCADE,
+  severity TEXT NOT NULL DEFAULT 'info',
+  text TEXT NOT NULL,
+  record_id TEXT REFERENCES records(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS imports (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  source TEXT NOT NULL,
+  file_ref TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS source_lines (
+  id TEXT PRIMARY KEY,
+  import_id TEXT NOT NULL REFERENCES imports(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  amount TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'USD',
+  description TEXT NOT NULL DEFAULT '',
+  matched_record_id TEXT REFERENCES records(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS flags (
+  id TEXT PRIMARY KEY,
+  org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  record_id TEXT REFERENCES records(id) ON DELETE CASCADE,
+  source_line_id TEXT REFERENCES source_lines(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  resolved_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  resolved_at TIMESTAMPTZ,
+  resolution_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_records_org_seq ON records(org_id, seq_no);
 CREATE INDEX IF NOT EXISTS idx_records_org_status ON records(org_id, status);
 CREATE INDEX IF NOT EXISTS idx_user_keys_user ON user_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_checkpoints_org ON checkpoints(org_id);
 CREATE INDEX IF NOT EXISTS idx_engagements_org ON engagements(org_id);
 CREATE INDEX IF NOT EXISTS idx_engagements_auditor ON engagements(auditor_id);
 CREATE INDEX IF NOT EXISTS idx_checkpoint_witnesses_cp ON checkpoint_witnesses(checkpoint_id);
+CREATE INDEX IF NOT EXISTS idx_org_signers_org ON org_signers(org_id);
+CREATE INDEX IF NOT EXISTS idx_requests_engagement ON requests(engagement_id);
+CREATE INDEX IF NOT EXISTS idx_findings_engagement ON findings(engagement_id);
+CREATE INDEX IF NOT EXISTS idx_imports_org ON imports(org_id);
+CREATE INDEX IF NOT EXISTS idx_source_lines_import ON source_lines(import_id);
+CREATE INDEX IF NOT EXISTS idx_flags_org ON flags(org_id);
 `;
 
 export interface ExecutableClient {
