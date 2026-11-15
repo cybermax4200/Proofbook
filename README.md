@@ -736,15 +736,12 @@ proofbook/
 ├── spec/
 │   ├── FORMAT.md             # PB1 format specification
 │   └── test-vectors/         # canonical inputs and expected hashes
-├── infra/
-│   ├── docker-compose.yml
-│   └── migrations/
+├── test/
+│   └── e2e/                  # full-stack 5-stage end-to-end verification drill
+├── scripts/
+│   └── demo-drill.ts         # interactive terminal demo drill
 ├── docs/
-│   ├── architecture.md
-│   ├── threat-model.md
-│   ├── auditor-guide.md
-│   └── operator-guide.md
-├── .github/workflows/        # CI
+│   └── DEMO_GUIDE.md         # live presentation and demo recording guide
 ├── LICENSE
 └── README.md
 ```
@@ -816,42 +813,48 @@ cp .env.example .env
 
 ### 12.6 Run the stack locally
 
+Zero-Docker local development is supported out of the box via in-process PGlite and local AES-256-GCM encrypted file storage:
+
 ```bash
-docker compose up -d postgres minio
-pnpm --filter api migrate
-pnpm dev          # starts api, worker, and web
+pnpm api:dev      # starts Fastify REST API on http://localhost:4000
+pnpm web:dev      # starts Next.js Organization Portal, Auditor Workspace & Public Verifier on http://localhost:3000
 ```
 
-- Web app: http://localhost:3000
+- Web app: http://localhost:3000 (`/portal`, `/auditor`, `/verify`)
 - API: http://localhost:4000
-- Object store console (MinIO): http://localhost:9001
 
-### 12.7 Try the verify flow (planned)
+### 12.7 Try the verify flow & interactive demo drill
 
 ```bash
-# Export a proof bundle from the web app, then:
-pnpm --filter proofbook-cli build
-./cli/proofbook-cli/bin/proofbook verify ./bundle.json --network testnet
+# Run the interactive 5-stage End-to-End Demo Drill:
+pnpm demo:drill
+
+# Verify the live Stellar Testnet Checkpoint #1 proof bundle via CLI:
+pnpm cli:build
+./cli/proofbook-cli/bin/proofbook verify ./spec/test-vectors/sample-bundle.json --network testnet
 ```
 
 Expected output:
 
 ```
-Recomputed leaf ............ OK
-Merkle path to root ........ OK
-On-chain checkpoint #42 .... root matches (ledger 1234567)
-Author signature ........... OK
-Approver signatures ........ OK (1 of 1 required)
-Auditor witnesses .......... 1 (G...ABCD)
-RESULT: VERIFIED
+Recomputed leaf ............. OK [4ffebfe1...debb6e]
+Merkle path to root ......... OK (2 steps)
+On-chain checkpoint #1 ...... root matches (ledger 5591134)
+Author signature ............ OK (ea4a6c63...)
+Approver signatures ......... OK (1 of 1 required)
+Auditor witnesses ........... 1 (GBHTYTJU...)
+RESULT: VERIFIED ✓
 ```
+
+See [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for the complete 5-minute demo recording walkthrough.
 
 ### 12.8 Running tests
 
 ```bash
-cargo test                      # contract unit and property tests
-pnpm test                       # crypto, verifier, api, worker
+pnpm contract:test              # Soroban contract unit & adversarial tests
+pnpm test                       # crypto, verifier, cli, api, worker, web
 pnpm test:vectors               # check PB1 test vectors
+pnpm test:e2e                   # run 5-stage End-to-End verification drill
 ```
 
 ---
@@ -860,24 +863,24 @@ pnpm test:vectors               # check PB1 test vectors
 
 ### Phase 0: Specification and contract (weeks 1-2)
 
-- [ ] PB1 format spec and test vectors
-- [ ] Soroban contract: organizations, anchoring, chain linkage, auditor witnessing
-- [ ] Contract tests including adversarial cases (branching, regression, unauthorized witness)
-- [ ] Testnet deployment
+- [x] PB1 format spec and test vectors
+- [x] Soroban contract: organizations, anchoring, chain linkage, auditor witnessing
+- [x] Contract tests including adversarial cases (branching, regression, unauthorized witness)
+- [x] Testnet deployment (`CDB4DCLRAIAGILGM4DWIOKOTSWDDY6IGP4X4FF62DA3GUQQ4LEKD5VCD`)
 
 ### Phase 1: Capture and anchoring (weeks 3-6)
 
-- [ ] Client crypto module: canonicalization, field commitments, Merkle tree, signing
-- [ ] Record submission with client-side encryption
-- [ ] Maker-checker approval workflow
-- [ ] Checkpoint worker and automatic anchoring
-- [ ] Public verify page and `proofbook verify` CLI
+- [x] Client crypto module: canonicalization, field commitments, Merkle tree, signing
+- [x] Record submission with client-side encryption
+- [x] Maker-checker approval workflow
+- [x] Checkpoint worker and automatic anchoring
+- [x] Public verify page and `proofbook verify` CLI
 
 ### Phase 2: Auditor experience (weeks 7-8)
 
-- [ ] Engagement workspace: requests, evidence viewer, findings
-- [ ] One-click verify and on-chain witnessing
-- [ ] PDF audit report with verification QR
+- [x] Engagement workspace: requests, evidence viewer, findings
+- [x] One-click verify and on-chain witnessing
+- [x] PDF & JSON audit report with verification QR code
 
 ### Phase 3: Source reconciliation and pilot (weeks 9-10)
 
