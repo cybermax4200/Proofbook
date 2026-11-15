@@ -32,6 +32,16 @@ import {
   verifyBundleInBrowser,
   verifyBundleWithStellarInBrowser,
 } from '../src/lib/browser-verifier.js';
+import {
+  auditRecordEvidence,
+  buildAuditReportJson,
+  buildAuditReportPdfBytes,
+  buildSeedAuditorCheckpoints,
+  generateVerificationQrSvg,
+  getDefaultAuditorWallet,
+  verifyCheckpointChainLinkage,
+  witnessCheckpointInBrowser,
+} from '../src/lib/auditor-store.js';
 
 describe('Client-Side Cryptographic Engine (Format PB1)', () => {
   it('generates 32-byte per-field salts and matches @proofbook/crypto commitments', () => {
@@ -230,5 +240,102 @@ describe('Public Browser Verifier & Stellar Soroban Checkpoint Reader', () => {
     );
     assert.equal(fullReport.valid, true);
     assert.equal(fullReport.onChain?.verified, true);
+  });
+});
+
+describe('Auditor Workspace UI Engine, Chain Linkage, Witnessing & Report Export', () => {
+  it('verifies checkpoint chain continuity and detects broken prev_root linkage', () => {
+    const checkpoints = buildSeedAuditorCheckpoints();
+    assert.equal(checkpoints.length, 2);
+
+    const linkage = verifyCheckpointChainLinkage(checkpoints);
+    assert.equal(linkage.valid, true);
+    assert.equal(linkage.genesisAnchored, true);
+    assert.equal(linkage.links[1].prevRootMatches, true);
+    assert.equal(linkage.links[1].prevRoot, checkpoints[0].root);
+
+    // Tamper with Checkpoint #2 prev_root
+    const tampered = structuredClone(checkpoints);
+    tampered[1].prevRoot = 'ff'.repeat(32);
+    const brokenReport = verifyCheckpointChainLinkage(tampered);
+    assert.equal(brokenReport.valid, false);
+    assert.ok(brokenReport.errors.some((e) => e.includes('Chain discontinuity')));
+  });
+
+  it('performs one-click on-chain checkpoint witnessing with Stellar keypair and blocks duplicate or mismatched roots', async () => {
+    const checkpoints = buildSeedAuditorCheckpoints();
+    const cp2 = checkpoints[1];
+    const wallet = getDefaultAuditorWallet();
+
+    // Root mismatch is rejected
+    await assert.rejects(
+      () =>
+        witnessCheckpointInBrowser({
+          checkpoint: cp2,
+          rootSeen: 'aa'.repeat(32),
+          auditorSecret: wallet.secretKey,
+        }),
+      /RootMismatch/
+    );
+
+    // Valid one-click witness succeeds
+    const { updatedCheckpoint, witnessEntry } = await witnessCheckpointInBrowser({
+      checkpoint: cp2,
+      rootSeen: cp2.root,
+      auditorSecret: wallet.secretKey,
+    });
+
+    assert.equal(updatedCheckpoint.witnesses.length, 1);
+    assert.equal(witnessEntry.auditorAddress, wallet.publicKey);
+    assert.equal(witnessEntry.rootSeen, cp2.root);
+    assert.equal(witnessEntry.signatureHex.length, 128);
+
+    // Duplicate witness by same auditor is rejected
+    await assert.rejects(
+      () =>
+        witnessCheckpointInBrowser({
+          checkpoint: updatedCheckpoint,
+          rootSeen: cp2.root,
+          auditorSecret: wallet.secretKey,
+        }),
+      /AlreadyWitnessed/
+    );
+  });
+
+  it('audits record evidence and exports JSON and PDF 1.4 reports with embedded QR code', () => {
+    const records = buildSeedPortalRecords();
+    const approvedRec = records.find((r) => r.status === 'approved')!;
+    const evidenceAudit = auditRecordEvidence(approvedRec);
+    assert.equal(evidenceAudit.valid, true);
+    assert.equal(evidenceAudit.fieldRootValid, true);
+    assert.equal(evidenceAudit.leafHashValid, true);
+    assert.equal(evidenceAudit.authorSigValid, true);
+    assert.equal(evidenceAudit.checkerSigValid, true);
+    assert.equal(evidenceAudit.evidenceBound, true);
+
+    const checkpoints = buildSeedAuditorCheckpoints(records);
+    const report = buildAuditReportJson({
+      checkpoints,
+      targetCheckpointId: 1,
+      records,
+      baseUrl: 'https://proofbook.stellar.org',
+    });
+
+    assert.equal(report.version, 'PB1');
+    assert.equal(report.summary.allChainLinksValid, true);
+    assert.equal(report.summary.isCheckpointWitnessed, true);
+    assert.equal(report.summary.overallAssuranceStatus, 'VERIFIED_AND_WITNESSED');
+    assert.ok(report.verificationUrl.includes('/verify/'));
+    assert.ok(report.qrCodeSvg.startsWith('<svg'));
+
+    const qrSvg = generateVerificationQrSvg(report.verificationUrl);
+    assert.ok(qrSvg.includes('viewBox="0 0 25 25"'));
+
+    const pdfBytes = buildAuditReportPdfBytes(report);
+    const pdfText = new TextDecoder().decode(pdfBytes);
+    assert.ok(pdfText.startsWith('%PDF-1.4'));
+    assert.ok(pdfText.includes('PROOFBOOK PB1 - INDEPENDENT AUDITOR ASSURANCE REPORT'));
+    assert.ok(pdfText.includes(report.targetCheckpoint.root));
+    assert.ok(pdfText.trim().endsWith('%%EOF'));
   });
 });

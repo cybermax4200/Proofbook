@@ -10,6 +10,7 @@ import {
   Blocks,
   Terminal,
   ExternalLink,
+  Stamp,
 } from 'lucide-react';
 
 export function Navbar() {
@@ -27,6 +28,12 @@ export function Navbar() {
       label: 'Organization Portal',
       icon: FilePlus2,
       active: pathname?.startsWith('/portal'),
+    },
+    {
+      href: '/auditor',
+      label: 'Auditor Workspace',
+      icon: Stamp,
+      active: pathname?.startsWith('/auditor'),
     },
     {
       href: '/verify',

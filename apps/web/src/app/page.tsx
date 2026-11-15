@@ -47,6 +47,14 @@ export default function HomePage() {
             </Link>
 
             <Link
+              href="/auditor"
+              className="inline-flex items-center gap-2 rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-5 py-3 text-sm font-semibold text-indigo-200 hover:bg-indigo-500/25 transition"
+            >
+              <ShieldCheck className="h-4 w-4 text-indigo-400" />
+              <span>Auditor Workspace</span>
+            </Link>
+
+            <Link
               href="/verify"
               className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900/90 px-5 py-3 text-sm font-semibold text-slate-200 hover:border-slate-600 hover:bg-slate-800 transition"
             >
