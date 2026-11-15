@@ -5,6 +5,7 @@ import {
   computeRecordLeaf,
   computeRecordLeafHex,
   decodePublicKey,
+  encodeStellarPublicKey,
   DOMAIN_RECORD_LEAF,
 } from '../src/index.js';
 
@@ -49,12 +50,20 @@ describe('PB1 Record Leaf Calculation', () => {
   it('normalizes author public keys across hex, raw bytes, and Stellar G format', () => {
     // Stellar G address for authorPubHex
     // We can decode and test with raw bytes vs hex vs ed25519: prefix
+    const stellarG = encodeStellarPublicKey(authorRaw);
     const leaf1 = computeRecordLeafHex({ recordId, author: authorPubHex, createdAt, fieldRoot });
     const leaf2 = computeRecordLeafHex({ recordId, author: `ed25519:${authorPubHex}`, createdAt, fieldRoot });
     const leaf3 = computeRecordLeafHex({ recordId, author: authorRaw, createdAt, fieldRoot });
+    const leaf4 = computeRecordLeafHex({ recordId, author: stellarG, createdAt, fieldRoot });
 
     assert.strictEqual(leaf1, leaf2);
     assert.strictEqual(leaf2, leaf3);
+    assert.strictEqual(leaf3, leaf4);
+
+    // Corrupted Stellar G address CRC16 checksum must be rejected
+    const corruptedG =
+      stellarG.slice(0, -1) + (stellarG.endsWith('A') ? 'B' : 'A');
+    assert.throws(() => decodePublicKey(corruptedG), /Invalid Stellar G address checksum/);
   });
 
   it('rejects non-UTC timestamps', () => {

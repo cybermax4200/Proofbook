@@ -2,6 +2,7 @@ import {
   commitField,
   computeFieldRoot,
   computeRecordLeafHex,
+  decodePublicKey,
   verifyMerkleProof,
   verifySignature,
   hashInternalNode,
@@ -76,6 +77,7 @@ export function verifyBundleOffline(bundle: ProofBundle): VerificationReport {
     steps.push({ name: 'Field Commitments', passed: false, message: msg });
   } else {
     let allCommitmentsValid = true;
+    const isSelectiveDisclosure = Boolean(fieldProofs && Object.keys(fieldProofs).length > 0);
 
     // Check individual commitments
     for (const name of fieldNames) {
@@ -90,16 +92,19 @@ export function verifyBundleOffline(bundle: ProofBundle): VerificationReport {
 
       try {
         const commitment = commitField(name, val, salt);
-        const commitmentHex = Buffer.from(commitment).toString('hex');
 
-        // If field proof is provided for this field, check it against record.field_root
-        if (fieldProofs && fieldProofs[name]) {
-          if (!record.field_root) {
+        if (isSelectiveDisclosure) {
+          const fieldProof = fieldProofs?.[name];
+          if (!fieldProof || !Array.isArray(fieldProof)) {
+            const msg = `Missing Merkle inclusion proof for disclosed field "${name}" in selective disclosure bundle`;
+            errors.push(msg);
+            allCommitmentsValid = false;
+          } else if (!record.field_root) {
             const msg = `Field proof provided for "${name}" but record.field_root is missing`;
             errors.push(msg);
             allCommitmentsValid = false;
           } else {
-            const proofValid = verifyMerkleProof(commitment, fieldProofs[name], record.field_root);
+            const proofValid = verifyMerkleProof(commitment, fieldProof, record.field_root);
             if (!proofValid) {
               const msg = `Merkle proof verification failed for field "${name}" against field root`;
               errors.push(msg);
@@ -115,9 +120,14 @@ export function verifyBundleOffline(bundle: ProofBundle): VerificationReport {
     }
 
     // Determine field root
-    if (fieldProofs && Object.keys(fieldProofs).length > 0) {
+    if (isSelectiveDisclosure) {
       // Selective disclosure with field proofs
-      recomputedFieldRoot = record.field_root || '';
+      if (!record.field_root) {
+        const msg = 'Selective disclosure bundle is missing record.field_root';
+        errors.push(msg);
+        allCommitmentsValid = false;
+      }
+      recomputedFieldRoot = allCommitmentsValid ? record.field_root || '' : '';
       steps.push({
         name: 'Field Commitments (Selective Disclosure)',
         passed: allCommitmentsValid && Boolean(recomputedFieldRoot),
@@ -231,6 +241,15 @@ export function verifyBundleOffline(bundle: ProofBundle): VerificationReport {
 
   if (approverTotal > 0 && recomputedLeaf) {
     let allApproversValid = true;
+    let authorPubKeyHex = '';
+    if (record?.author) {
+      try {
+        authorPubKeyHex = Buffer.from(decodePublicKey(record.author)).toString('hex');
+      } catch {
+        // Handled in author check
+      }
+    }
+    const seenApproverPubKeys = new Set<string>();
 
     for (let i = 0; i < approverTotal; i++) {
       const item = approvers[i];
@@ -263,6 +282,31 @@ export function verifyBundleOffline(bundle: ProofBundle): VerificationReport {
         allApproversValid = false;
         continue;
       }
+
+      let normalizedApproverHex = '';
+      try {
+        normalizedApproverHex = Buffer.from(decodePublicKey(pubKey)).toString('hex');
+      } catch (err: any) {
+        const msg = `Approver public key at index ${i} is invalid: ${err.message}`;
+        errors.push(msg);
+        allApproversValid = false;
+        continue;
+      }
+
+      if (authorPubKeyHex && normalizedApproverHex === authorPubKeyHex) {
+        const msg = `Maker-Checker separation violation: approver (${pubKey.slice(0, 10)}...) cannot be the record author`;
+        errors.push(msg);
+        allApproversValid = false;
+        continue;
+      }
+
+      if (seenApproverPubKeys.has(normalizedApproverHex)) {
+        const msg = `Duplicate approver signature from public key (${pubKey.slice(0, 10)}...)`;
+        errors.push(msg);
+        allApproversValid = false;
+        continue;
+      }
+      seenApproverPubKeys.add(normalizedApproverHex);
 
       const valid = verifySignature(sig, recomputedLeaf, pubKey);
       if (valid) {

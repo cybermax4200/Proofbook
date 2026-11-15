@@ -30,11 +30,61 @@ function decodeBase32(str: string): Uint8Array {
 }
 
 /**
+ * Computes the CRC16-XModem checksum used by Stellar StrKey addresses.
+ */
+export function crc16Xmodem(buf: Uint8Array): number {
+  let crc = 0x0000;
+  for (let i = 0; i < buf.length; i++) {
+    let code = (crc >>> 8) & 0xff;
+    code ^= buf[i] & 0xff;
+    code ^= code >>> 4;
+    crc = (crc << 8) & 0xffff;
+    crc ^= code;
+    code = (code << 5) & 0xffff;
+    crc ^= code;
+    code = (code << 7) & 0xffff;
+    crc ^= code;
+  }
+  return crc;
+}
+
+/**
+ * Encodes a raw 32-byte Ed25519 public key into a 56-character Stellar StrKey 'G...' address.
+ */
+export function encodeStellarPublicKey(rawPubKey: Uint8Array): string {
+  if (rawPubKey.length !== 32) {
+    throw new Error(`Raw public key must be 32 bytes (got ${rawPubKey.length})`);
+  }
+  const payload = new Uint8Array(35);
+  payload[0] = 48; // Version byte for account ID ('G'): 6 << 3
+  payload.set(rawPubKey, 1);
+  const checksum = crc16Xmodem(payload.subarray(0, 33));
+  payload[33] = checksum & 0xff;
+  payload[34] = (checksum >>> 8) & 0xff;
+
+  let bits = 0;
+  let value = 0;
+  let output = '';
+  for (let i = 0; i < payload.length; i++) {
+    value = (value << 8) | payload[i];
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) {
+    output += BASE32_ALPHABET[(value << (5 - bits)) & 31];
+  }
+  return output;
+}
+
+/**
  * Normalizes an Ed25519 public key into raw 32 bytes.
  * Supports:
  * - 32-byte Uint8Array or Buffer
  * - 64-character hex string (with optional '0x' or 'ed25519:' prefix)
- * - 56-character Stellar public key (StrKey 'G...')
+ * - 56-character Stellar public key (StrKey 'G...') with CRC16-XModem verification
  */
 export function decodePublicKey(pubkey: Uint8Array | string): Uint8Array {
   if (pubkey instanceof Uint8Array || Buffer.isBuffer(pubkey)) {
@@ -51,6 +101,11 @@ export function decodePublicKey(pubkey: Uint8Array | string): Uint8Array {
     const decoded = decodeBase32(s);
     if (decoded.length !== 35 || decoded[0] !== 48 /* 6 << 3 */) {
       throw new Error(`Invalid Stellar G address encoding: ${s}`);
+    }
+    const expectedChecksum = decoded[33] | (decoded[34] << 8);
+    const actualChecksum = crc16Xmodem(decoded.subarray(0, 33));
+    if (expectedChecksum !== actualChecksum) {
+      throw new Error(`Invalid Stellar G address checksum: ${s}`);
     }
     return decoded.subarray(1, 33);
   }

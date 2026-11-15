@@ -129,6 +129,37 @@ export async function verifyOnChainCheckpoint(
   const expectedRoot = (bundle.expected_root || '').toLowerCase();
   const rootMatches = anchoredRoot === expectedRoot;
 
+  // 1b. Verify prev_root chain continuity
+  let chainContinuous = true;
+  let chainError = '';
+  if (cpData.id === 1) {
+    if (cpData.prevRoot && cpData.prevRoot.toLowerCase() !== '00'.repeat(32)) {
+      chainContinuous = false;
+      chainError = `Genesis checkpoint #1 prev_root must be 32 zero bytes, got ${cpData.prevRoot}`;
+    }
+  } else if (cpData.id > 1) {
+    try {
+      const prevIdScVal = StellarSdk.nativeToScVal(cpData.id - 1, { type: 'u32' });
+      const prevSimTx = new StellarSdk.TransactionBuilder(dummyAccount, {
+        fee: '100',
+        networkPassphrase,
+      })
+        .addOperation(contract.call('get_checkpoint', orgAddressScVal, prevIdScVal))
+        .setTimeout(30)
+        .build();
+      const prevSimResult = await server.simulateTransaction(prevSimTx);
+      if (StellarSdk.rpc.Api.isSimulationSuccess(prevSimResult) && prevSimResult.result?.retval) {
+        const prevCp = parseCheckpointData(StellarSdk.scValToNative(prevSimResult.result.retval));
+        if (cpData.prevRoot.toLowerCase() !== prevCp.root.toLowerCase()) {
+          chainContinuous = false;
+          chainError = `Checkpoint #${cpData.id} prev_root (${cpData.prevRoot}) does not match checkpoint #${cpData.id - 1} root (${prevCp.root})`;
+        }
+      }
+    } catch {
+      // Previous checkpoint TTL may have expired or RPC call failed; do not fail if unavailable
+    }
+  }
+
   // 2. Check witnesses if requested
   const witnesses: Array<{ auditor: string; ledger?: number }> = [];
   const auditors = options.auditorsToCheck || [];
@@ -155,7 +186,33 @@ export async function verifyOnChainCheckpoint(
       if (StellarSdk.rpc.Api.isSimulationSuccess(witnessSim) && witnessSim.result?.retval) {
         const isWitnessed = Boolean(StellarSdk.scValToNative(witnessSim.result.retval));
         if (isWitnessed) {
-          witnesses.push({ auditor });
+          let witnessLedger: number | undefined;
+          try {
+            const ledgerTx = new StellarSdk.TransactionBuilder(dummyAccount, {
+              fee: '100',
+              networkPassphrase,
+            })
+              .addOperation(
+                contract.call(
+                  'get_witness_ledger',
+                  orgAddressScVal,
+                  StellarSdk.nativeToScVal(cpData.id, { type: 'u32' }),
+                  auditorScVal
+                )
+              )
+              .setTimeout(30)
+              .build();
+            const ledgerSim = await server.simulateTransaction(ledgerTx);
+            if (StellarSdk.rpc.Api.isSimulationSuccess(ledgerSim) && ledgerSim.result?.retval) {
+              const nativeLedger = StellarSdk.scValToNative(ledgerSim.result.retval);
+              if (nativeLedger !== null && nativeLedger !== undefined) {
+                witnessLedger = Number(nativeLedger);
+              }
+            }
+          } catch {
+            // Optional helper on newer contracts
+          }
+          witnesses.push(witnessLedger !== undefined ? { auditor, ledger: witnessLedger } : { auditor });
         }
       }
     } catch {
@@ -163,8 +220,10 @@ export async function verifyOnChainCheckpoint(
     }
   }
 
+  const verified = rootMatches && chainContinuous;
+
   return {
-    verified: rootMatches,
+    verified,
     checkpointId: cpData.id,
     contractId,
     org,
@@ -176,8 +235,10 @@ export async function verifyOnChainCheckpoint(
     ledger: cpData.ledger,
     timestamp: cpData.timestamp,
     witnesses,
-    message: rootMatches
-      ? `On-chain checkpoint #${cpData.id} root matches anchored root (ledger ${cpData.ledger})`
-      : `Root mismatch: on-chain root is ${cpData.root}, bundle expected ${expectedRoot}`,
+    message: !rootMatches
+      ? `Root mismatch: on-chain root is ${cpData.root}, bundle expected ${expectedRoot}`
+      : !chainContinuous
+        ? chainError
+        : `On-chain checkpoint #${cpData.id} root matches anchored root (ledger ${cpData.ledger})`,
   };
 }

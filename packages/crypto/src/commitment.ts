@@ -1,16 +1,19 @@
 import { sha256 } from '@noble/hashes/sha256';
-import crypto from 'node:crypto';
 import { DOMAIN_FIELD_COMMIT, buildMerkleTree, getMerkleProof, MerkleTree, MerkleProof } from './merkle.js';
 
 const textEncoder = new TextEncoder();
 
 /**
  * Generates 32 cryptographically secure random bytes for field salting.
+ * Compatible with both browser Web Crypto API and Node.js globalThis.crypto.
  */
 export function generateSalt(): Uint8Array {
   const salt = new Uint8Array(32);
-  crypto.getRandomValues(salt);
-  return salt;
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    globalThis.crypto.getRandomValues(salt);
+    return salt;
+  }
+  throw new Error('Secure random number generator (crypto.getRandomValues) is not available');
 }
 
 /**

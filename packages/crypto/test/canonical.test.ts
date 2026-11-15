@@ -23,10 +23,14 @@ describe('PB1 Canonical Serialization', () => {
     assert.deepStrictEqual(bytes1, bytes2);
   });
 
-  it('formats decimals to fixed precision', () => {
+  it('formats decimals to fixed precision and normalizes negative zero', () => {
     assert.strictEqual(formatDecimal(1250, 2), '1250.00');
     assert.strictEqual(formatDecimal('1250.5', 2), '1250.50');
     assert.strictEqual(formatDecimal('1250.555', 2), '1250.55');
+    assert.strictEqual(formatDecimal('-0', 2), '0.00');
+    assert.strictEqual(formatDecimal('-0.00', 2), '0.00');
+    assert.strictEqual(formatDecimal('-0.5', 0), '0');
+    assert.strictEqual(formatDecimal(-0, 2), '0.00');
   });
 
   it('validates RFC 3339 UTC timestamps strictly', () => {

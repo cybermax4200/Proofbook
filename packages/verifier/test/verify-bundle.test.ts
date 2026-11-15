@@ -133,6 +133,68 @@ describe('PB1 Bundle Verification Engine', () => {
     assert.strictEqual(report.errors.length, 0);
   });
 
+  it('rejects selective disclosure bundle when a disclosed field is missing its Merkle proof', () => {
+    const { bundle, fieldRootResult } = createValidBundleFixture();
+    const proofAmount = getFieldProof(fieldRootResult, 'amount');
+
+    // Disclose 'amount' (valid proof) and 'payee' (forged value with omitted proof)
+    const forgedSelectiveBundle: ProofBundle = {
+      ...bundle,
+      record: {
+        record_id: bundle.record.record_id,
+        created_at: bundle.record.created_at,
+        author: bundle.record.author,
+        field_root: fieldRootResult.rootHex,
+        disclosed_fields: {
+          amount: bundle.record.disclosed_fields.amount,
+          payee: 'Evil Attacker Corp',
+        },
+        salts: {
+          amount: bundle.record.salts.amount,
+          payee: Buffer.from(generateSalt()).toString('hex'),
+        },
+        field_proofs: {
+          amount: proofAmount.proof,
+          // payee proof intentionally omitted
+        },
+      },
+    };
+
+    const report = verifyBundleOffline(forgedSelectiveBundle);
+    assert.strictEqual(report.valid, false);
+    assert.ok(
+      report.errors.some((e) =>
+        e.includes('Missing Merkle inclusion proof for disclosed field "payee"')
+      )
+    );
+  });
+
+  it('rejects Maker-Checker violation where approver is the same as the record author', () => {
+    const { bundle, authorKeys } = createValidBundleFixture();
+    const selfApproved = JSON.parse(JSON.stringify(bundle)) as ProofBundle;
+    selfApproved.signatures.approvers = [
+      {
+        publicKey: authorKeys.publicKeyHex,
+        signature: bundle.signatures.author,
+      },
+    ];
+
+    const report = verifyBundleOffline(selfApproved);
+    assert.strictEqual(report.valid, false);
+    assert.ok(report.errors.some((e) => e.includes('Maker-Checker separation violation')));
+  });
+
+  it('rejects duplicate approver public keys', () => {
+    const { bundle } = createValidBundleFixture();
+    const dupApproved = JSON.parse(JSON.stringify(bundle)) as ProofBundle;
+    const firstApprover = dupApproved.signatures.approvers![0];
+    dupApproved.signatures.approvers = [firstApprover, firstApprover];
+
+    const report = verifyBundleOffline(dupApproved);
+    assert.strictEqual(report.valid, false);
+    assert.ok(report.errors.some((e) => e.includes('Duplicate approver signature')));
+  });
+
   it('rejects tampered field value', () => {
     const { bundle } = createValidBundleFixture();
     const tampered = JSON.parse(JSON.stringify(bundle)) as ProofBundle;

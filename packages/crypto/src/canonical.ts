@@ -118,9 +118,13 @@ export function isValidRfc3339Utc(str: string): boolean {
  * Example: formatDecimal("1250", 2) -> "1250.00"
  */
 export function formatDecimal(val: string | number | bigint, precision = 2): string {
+  if (!Number.isInteger(precision) || precision < 0) {
+    throw new RangeError(`Invalid precision: ${precision}`);
+  }
   if (typeof val === 'number') {
     if (!Number.isFinite(val)) throw new TypeError('Invalid number');
-    return val.toFixed(precision);
+    const formatted = (Object.is(val, -0) ? 0 : val).toFixed(precision);
+    return /^-[0.]+$/.test(formatted) ? formatted.slice(1) : formatted;
   }
   if (typeof val === 'bigint') {
     if (precision === 0) return val.toString();
@@ -131,7 +135,10 @@ export function formatDecimal(val: string | number | bigint, precision = 2): str
     throw new Error(`Invalid decimal string: ${s}`);
   }
   const [intPart, fracPart = ''] = s.split('.');
-  if (precision === 0) return intPart;
+  if (precision === 0) {
+    return /^-[0]+$/.test(intPart) ? '0' : intPart;
+  }
   const padded = fracPart.slice(0, precision).padEnd(precision, '0');
-  return `${intPart}.${padded}`;
+  const result = `${intPart}.${padded}`;
+  return /^-[0.]+$/.test(result) ? result.slice(1) : result;
 }
