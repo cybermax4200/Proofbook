@@ -816,12 +816,12 @@ cp .env.example .env
 Zero-Docker local development is supported out of the box via in-process PGlite and local AES-256-GCM encrypted file storage:
 
 ```bash
-pnpm api:dev      # starts Fastify REST API on http://localhost:4000
+pnpm api:dev      # starts Fastify REST API on http://localhost:3001
 pnpm web:dev      # starts Next.js Organization Portal, Auditor Workspace & Public Verifier on http://localhost:3000
 ```
 
 - Web app: http://localhost:3000 (`/portal`, `/auditor`, `/verify`)
-- API: http://localhost:4000
+- API: http://localhost:3001
 
 ### 12.7 Try the verify flow & interactive demo drill
 
@@ -884,10 +884,10 @@ pnpm test:e2e                   # run 5-stage End-to-End verification drill
 
 ### Phase 3: Source reconciliation and pilot (weeks 9-10)
 
-- [ ] CSV / bank statement importers and matching
-- [ ] Flagging and resolution workflow
+- [x] CSV / bank statement importers and matching
+- [x] Flagging and resolution workflow
 - [ ] Pilot with 2-3 organizations and one auditor
-- [ ] Documentation for operators and auditors
+- [x] Documentation for operators and auditors
 
 ### Phase 4: Hardening (post-pilot)
 

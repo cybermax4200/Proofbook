@@ -1,0 +1,46 @@
+name: Proofbook CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  soroban-contract:
+    name: Soroban Smart Contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - name: Run contract unit & adversarial tests
+        working-directory: contracts/proofbook
+        run: cargo test
+
+  typescript-monorepo:
+    name: TypeScript Packages, API, Worker, CLI & Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: pnpm --filter @proofbook/crypto build && pnpm --filter @proofbook/verifier build && pnpm --filter @proofbook/api build && pnpm --filter @proofbook/worker build && pnpm --filter proofbook-cli build
+      - name: Typecheck (lint)
+        run: pnpm lint
+      - name: Verify PB1 test vectors
+        run: pnpm test:vectors
+      - name: Run unit & integration tests
+        run: pnpm test
+      - name: Run 5-stage E2E drill
+        run: pnpm test:e2e

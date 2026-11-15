@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "lint": "tsc --noEmit",
     "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {

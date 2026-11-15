@@ -11,6 +11,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc && chmod +x bin/proofbook",
+    "lint": "tsc --noEmit",
     "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {

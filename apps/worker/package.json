@@ -8,6 +8,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "lint": "tsc --noEmit",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "run:once": "tsx src/cli.ts run:once",
