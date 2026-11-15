@@ -68,6 +68,10 @@ fn test_anchor_chain_and_count_decreased() {
     let root1 = BytesN::from_array(&env, &[1u8; 32]);
     let root2 = BytesN::from_array(&env, &[2u8; 32]);
 
+    // Empty checkpoint (record_count == 0) fails
+    let res_zero = client.try_anchor_checkpoint(&org, &root1, &0, &1000, &2000);
+    assert_eq!(res_zero, Err(Ok(Error::CountDecreased)));
+
     // Checkpoint 1
     let id1 = client.anchor_checkpoint(&org, &root1, &10, &1000, &2000);
     assert_eq!(id1, 1);
@@ -83,6 +87,10 @@ fn test_anchor_chain_and_count_decreased() {
     // Checkpoint 2 with decreased count fails
     let res = client.try_anchor_checkpoint(&org, &root2, &9, &2000, &3000);
     assert_eq!(res, Err(Ok(Error::CountDecreased)));
+
+    // Checkpoint 2 with unchanged count fails (must strictly advance)
+    let res_same = client.try_anchor_checkpoint(&org, &root2, &10, &2000, &3000);
+    assert_eq!(res_same, Err(Ok(Error::CountDecreased)));
 
     // Checkpoint 2 with period before cp1 period_end fails
     let res2 = client.try_anchor_checkpoint(&org, &root2, &15, &1999, &3000);
@@ -125,7 +133,9 @@ fn test_auditor_witnessing_flow() {
     assert_eq!(res, Err(Ok(Error::AuditorNotAuthorized)));
 
     // Authorize auditor
+    assert!(!client.is_authorized_auditor(&org, &auditor));
     client.authorize_auditor(&org, &auditor);
+    assert!(client.is_authorized_auditor(&org, &auditor));
 
     // Witnessing with mismatched root fails
     let res_mismatch = client.try_witness_checkpoint(&org, &cp_id, &auditor, &wrong_root);
@@ -133,8 +143,13 @@ fn test_auditor_witnessing_flow() {
 
     // Successful witness
     assert!(!client.is_witnessed_by(&org, &cp_id, &auditor));
+    assert_eq!(client.get_witness_ledger(&org, &cp_id, &auditor), None);
     client.witness_checkpoint(&org, &cp_id, &auditor, &root);
     assert!(client.is_witnessed_by(&org, &cp_id, &auditor));
+    assert_eq!(
+        client.get_witness_ledger(&org, &cp_id, &auditor),
+        Some(env.ledger().sequence())
+    );
 
     // Duplicate witness fails
     let res_dup = client.try_witness_checkpoint(&org, &cp_id, &auditor, &root);
@@ -142,10 +157,34 @@ fn test_auditor_witnessing_flow() {
 
     // Revoke auditor
     client.revoke_auditor(&org, &auditor);
+    assert!(!client.is_authorized_auditor(&org, &auditor));
+
+    // Revoking an already-revoked auditor fails with AuditorNotAuthorized
+    let res_revoke_again = client.try_revoke_auditor(&org, &auditor);
+    assert_eq!(res_revoke_again, Err(Ok(Error::AuditorNotAuthorized)));
 
     // Future witness on another checkpoint fails because revoked
     let root_b = BytesN::from_array(&env, &[43u8; 32]);
     let cp_b = client.anchor_checkpoint(&org, &root_b, &6, &200, &300);
     let res_revoked = client.try_witness_checkpoint(&org, &cp_b, &auditor, &root_b);
     assert_eq!(res_revoked, Err(Ok(Error::AuditorNotAuthorized)));
+
+    // TTL extension helper works for valid checkpoint and fails for nonexistent one
+    client.extend_checkpoint_ttl(&org, &cp_id);
+    let res_ttl_missing = client.try_extend_checkpoint_ttl(&org, &999);
+    assert_eq!(res_ttl_missing, Err(Ok(Error::CheckpointNotFound)));
+}
+
+#[test]
+#[should_panic(expected = "Auth")]
+fn test_unauthorized_anchor_rejected_without_auth() {
+    let env = Env::default();
+    let contract_id = env.register(Proofbook, ());
+    let client = ProofbookClient::new(&env, &contract_id);
+
+    let org = Address::generate(&env);
+    let root = BytesN::from_array(&env, &[7u8; 32]);
+
+    // Calling anchor_checkpoint without org auth must fail
+    client.anchor_checkpoint(&org, &root, &1, &100, &200);
 }

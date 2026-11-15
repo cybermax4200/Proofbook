@@ -73,6 +73,9 @@ impl Proofbook {
         if !env.storage().persistent().has(&org_key) {
             return Err(Error::OrgNotRegistered);
         }
+        if record_count == 0 {
+            return Err(Error::CountDecreased);
+        }
         if period_end < period_start {
             return Err(Error::PeriodRegression);
         }
@@ -85,7 +88,7 @@ impl Proofbook {
                     .persistent()
                     .get(&DataKey::Checkpoint(org.clone(), last_id))
                     .ok_or(Error::CheckpointNotFound)?;
-                if record_count < prev.record_count {
+                if record_count <= prev.record_count {
                     return Err(Error::CountDecreased);
                 }
                 if period_start < prev.period_end {
@@ -125,10 +128,11 @@ impl Proofbook {
         if !env.storage().persistent().has(&org_key) {
             return Err(Error::OrgNotRegistered);
         }
-        let key = DataKey::Auditor(org.clone(), auditor);
+        let key = DataKey::Auditor(org.clone(), auditor.clone());
         env.storage().persistent().set(&key, &true);
         Self::bump(&env, &org_key);
         Self::bump(&env, &key);
+        env.events().publish((symbol_short!("aud_auth"), org), auditor);
         Ok(())
     }
 
@@ -138,13 +142,15 @@ impl Proofbook {
         if !env.storage().persistent().has(&org_key) {
             return Err(Error::OrgNotRegistered);
         }
-        let key = DataKey::Auditor(org.clone(), auditor);
-        if !env.storage().persistent().has(&key) {
+        let key = DataKey::Auditor(org.clone(), auditor.clone());
+        let authorized: bool = env.storage().persistent().get(&key).unwrap_or(false);
+        if !authorized {
             return Err(Error::AuditorNotAuthorized);
         }
         env.storage().persistent().set(&key, &false);
         Self::bump(&env, &org_key);
         Self::bump(&env, &key);
+        env.events().publish((symbol_short!("aud_rev"), org), auditor);
         Ok(())
     }
 
@@ -205,8 +211,39 @@ impl Proofbook {
             .has(&DataKey::Witness(org, id, auditor))
     }
 
+    pub fn get_witness_ledger(env: Env, org: Address, id: u32, auditor: Address) -> Option<u32> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Witness(org, id, auditor))
+    }
+
+    pub fn is_authorized_auditor(env: Env, org: Address, auditor: Address) -> bool {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Auditor(org, auditor))
+            .unwrap_or(false)
+    }
+
+    pub fn extend_checkpoint_ttl(env: Env, org: Address, id: u32) -> Result<(), Error> {
+        let cp_key = DataKey::Checkpoint(org.clone(), id);
+        if !env.storage().persistent().has(&cp_key) {
+            return Err(Error::CheckpointNotFound);
+        }
+        let org_key = DataKey::Org(org.clone());
+        if env.storage().persistent().has(&org_key) {
+            Self::bump(&env, &org_key);
+        }
+        let latest_key = DataKey::Latest(org);
+        if env.storage().persistent().has(&latest_key) {
+            Self::bump(&env, &latest_key);
+        }
+        Self::bump(&env, &cp_key);
+        Ok(())
+    }
+
     fn bump(env: &Env, key: &DataKey) {
         env.storage().persistent().extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND_TO);
+        env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
     }
 }
 
