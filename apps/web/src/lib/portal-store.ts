@@ -114,14 +114,13 @@ export function buildSeedPortalRecords(): PortalRecord[] {
     amount: '1250.00',
     currency: 'USD',
     payee: 'Acme Supplies Ltd',
-    evidence_hash:
-      'sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+    purpose: 'Classroom materials, batch 4',
   };
   const rec1Salts: Record<string, string> = {
     amount: '0101010101010101010101010101010101010101010101010101010101010101',
     currency: '0202020202020202020202020202020202020202020202020202020202020202',
-    evidence_hash: '0404040404040404040404040404040404040404040404040404040404040404',
     payee: '0303030303030303030303030303030303030303030303030303030303030303',
+    purpose: '0404040404040404040404040404040404040404040404040404040404040404',
   };
   const rec1FieldBundle = computeFieldRootInBrowser(rec1Fields, rec1Salts);
 
@@ -186,7 +185,8 @@ export function buildSeedPortalRecords(): PortalRecord[] {
       fileName: 'INV-2026-104-Acme-Supplies.pdf',
       mimeType: 'application/pdf',
       sizeBytes: 48210,
-      sha256: rec1Fields.evidence_hash,
+      sha256:
+        'sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
     },
     checkpointId: 1,
     expectedRoot:
