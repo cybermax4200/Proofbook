@@ -113,6 +113,18 @@ describe('Client-Side Cryptographic Engine (Format PB1)', () => {
       { fields, salts },
       keypair.secretKeyHex
     );
+    const parsedCipher = JSON.parse(ciphertext);
+    assert.equal(parsedCipher.envelope, undefined);
+    assert.equal(ciphertext.includes('Nordic Cloud'), false);
+
+    // Wrong key must not decrypt
+    const wrongKeypair = generateClientKeypair();
+    const wrongDecrypted = await decryptPayloadInBrowser(
+      ciphertext,
+      wrongKeypair.secretKeyHex
+    );
+    assert.equal(wrongDecrypted, null);
+
     const decrypted = await decryptPayloadInBrowser(
       ciphertext,
       keypair.secretKeyHex
@@ -216,6 +228,18 @@ describe('Public Browser Verifier & Stellar Soroban Checkpoint Reader', () => {
     const tamperedReport = verifyBundleInBrowser(tampered);
     assert.equal(tamperedReport.valid, false);
     assert.ok(tamperedReport.errors.length > 0);
+
+    // Inject unverified field into selective disclosure bundle without a proof
+    const forgedSelective = structuredClone(SAMPLE_TESTNET_BUNDLE);
+    forgedSelective.record.disclosed_fields.payee = 'Forged Payee';
+    forgedSelective.record.salts.payee = 'aa'.repeat(32);
+    const forgedReport = verifyBundleInBrowser(forgedSelective);
+    assert.equal(forgedReport.valid, false);
+    assert.ok(
+      forgedReport.errors.some((e) =>
+        e.includes('Missing Merkle inclusion proof for disclosed field "payee"')
+      )
+    );
   });
 
   it('inspects on-chain checkpoint #1 state and verifies bundle against Stellar', async () => {

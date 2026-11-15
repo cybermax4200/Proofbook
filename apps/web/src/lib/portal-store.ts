@@ -483,11 +483,8 @@ export function approveAndCoSignRecord(
   );
   const approvedAt = new Date().toISOString();
 
-  // Build deterministic single-record or multi-record checkpoint root & path for immediate bundle export
-  const checkpointTree = buildMerkleTreeInBrowser([
-    recomputedLeaf.leafBytes,
-    hexToBytes('1111111111111111111111111111111111111111111111111111111111111111'),
-  ]);
+  // Build deterministic single-record checkpoint root & path per Format PB1 Section 5
+  const checkpointTree = buildMerkleTreeInBrowser([recomputedLeaf.leafBytes]);
   const merklePath = getMerkleProofInBrowser(checkpointTree, 0);
 
   return {
@@ -596,4 +593,41 @@ export function buildExportProofBundle(
     },
     expected_root: record.expectedRoot || record.leafHash,
   };
+}
+
+/**
+ * Optional Fastify API synchronization helper: submits a signed record to `NEXT_PUBLIC_API_URL`
+ * when configured, falling back gracefully in standalone/demo mode.
+ */
+export async function syncRecordWithApi(
+  record: PortalRecord,
+  options: { apiUrl?: string; token?: string } = {}
+): Promise<boolean> {
+  const apiUrl = options.apiUrl || process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl || !options.token) {
+    return false;
+  }
+  try {
+    const authorSig = record.signatures.find((s) => s.kind === 'author')?.signature;
+    const res = await fetch(`${apiUrl.replace(/\/$/, '')}/api/v1/orgs/${record.orgId}/records`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${options.token}`,
+      },
+      body: JSON.stringify({
+        recordId: record.id,
+        type: record.type,
+        createdAt: record.createdAt,
+        fieldRoot: record.fieldRoot,
+        leafHash: record.leafHash,
+        ciphertext: record.ciphertext,
+        authorKeyId: record.authorKeyId,
+        authorSignature: authorSig,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

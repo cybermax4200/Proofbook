@@ -11,6 +11,7 @@ import {
   commitFieldInBrowser,
   computeFieldRootInBrowser,
   computeRecordLeafInBrowser,
+  decodePublicKeyInBrowser,
   hashInternalNodeInBrowser,
   hexToBytes,
   MerkleStep,
@@ -258,6 +259,7 @@ export function verifyBundleInBrowser(
     steps.push({ name: 'Field Commitments', passed: false, message: msg });
   } else {
     let allFieldsValid = true;
+    const isSelectiveDisclosure = Boolean(fieldProofs && Object.keys(fieldProofs).length > 0);
 
     for (const name of fieldNames) {
       const value = String(disclosedFields[name]);
@@ -283,8 +285,21 @@ export function verifyBundleInBrowser(
         const commitmentHex = bytesToHex(commitmentBytes);
         const proof = fieldProofs?.[name];
 
-        if (proof) {
-          if (!record.field_root) {
+        if (isSelectiveDisclosure) {
+          if (!proof || !Array.isArray(proof)) {
+            const err = `Missing Merkle inclusion proof for disclosed field "${name}" in selective disclosure bundle`;
+            errors.push(err);
+            allFieldsValid = false;
+            fieldDetails.push({
+              name,
+              value,
+              saltHex: salt,
+              commitmentHex,
+              proofSteps: 0,
+              passed: false,
+              error: err,
+            });
+          } else if (!record.field_root) {
             const err = `Field proof provided for "${name}" but record.field_root is missing`;
             errors.push(err);
             allFieldsValid = false;
@@ -344,8 +359,8 @@ export function verifyBundleInBrowser(
       }
     }
 
-    if (fieldProofs && Object.keys(fieldProofs).length > 0) {
-      recomputedFieldRoot = (record.field_root || '').toLowerCase();
+    if (isSelectiveDisclosure) {
+      recomputedFieldRoot = allFieldsValid ? (record.field_root || '').toLowerCase() : '';
       steps.push({
         name: 'Salted Field Commitments (Selective Disclosure)',
         passed: allFieldsValid && Boolean(recomputedFieldRoot),
@@ -466,6 +481,16 @@ export function verifyBundleInBrowser(
 
   if (approverTotal > 0 && recomputedLeaf) {
     let allApproversValid = true;
+    let authorPubKeyHex = '';
+    if (record?.author) {
+      try {
+        authorPubKeyHex = bytesToHex(decodePublicKeyInBrowser(record.author));
+      } catch {
+        // Handled in author check
+      }
+    }
+    const seenApproverPubKeys = new Set<string>();
+
     for (let i = 0; i < approverTotal; i++) {
       const item = approvers[i];
       let pubKey: string | undefined;
@@ -493,6 +518,30 @@ export function verifyBundleInBrowser(
         allApproversValid = false;
         continue;
       }
+
+      let normalizedApproverHex = '';
+      try {
+        normalizedApproverHex = bytesToHex(decodePublicKeyInBrowser(pubKey));
+      } catch (err: any) {
+        errors.push(`Approver public key #${i + 1} is invalid: ${err.message}`);
+        allApproversValid = false;
+        continue;
+      }
+
+      if (authorPubKeyHex && normalizedApproverHex === authorPubKeyHex) {
+        errors.push(
+          `Maker-Checker separation violation: approver (${pubKey.slice(0, 10)}...) cannot be the record author`
+        );
+        allApproversValid = false;
+        continue;
+      }
+
+      if (seenApproverPubKeys.has(normalizedApproverHex)) {
+        errors.push(`Duplicate approver signature from public key (${pubKey.slice(0, 10)}...)`);
+        allApproversValid = false;
+        continue;
+      }
+      seenApproverPubKeys.add(normalizedApproverHex);
 
       const valid = verifySignatureInBrowser(sig, recomputedLeaf, pubKey);
       if (valid) {

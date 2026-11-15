@@ -362,6 +362,22 @@ function decodeBase32(str: string): Uint8Array {
   return new Uint8Array(output);
 }
 
+function crc16Xmodem(buf: Uint8Array): number {
+  let crc = 0x0000;
+  for (let i = 0; i < buf.length; i++) {
+    let code = (crc >>> 8) & 0xff;
+    code ^= buf[i] & 0xff;
+    code ^= code >>> 4;
+    crc = (crc << 8) & 0xffff;
+    crc ^= code;
+    code = (code << 5) & 0xffff;
+    crc ^= code;
+    code = (code << 7) & 0xffff;
+    crc ^= code;
+  }
+  return crc;
+}
+
 /**
  * Decodes an Ed25519 public key (64-char hex, ed25519:<hex>, or Stellar G... StrKey) into 32 bytes.
  */
@@ -378,6 +394,11 @@ export function decodePublicKeyInBrowser(pubkey: Uint8Array | string): Uint8Arra
     const decoded = decodeBase32(trimmed);
     if (decoded.length !== 35 || decoded[0] !== 48) {
       throw new Error(`Invalid Stellar G address: ${trimmed}`);
+    }
+    const expectedChecksum = decoded[33] | (decoded[34] << 8);
+    const actualChecksum = crc16Xmodem(decoded.subarray(0, 33));
+    if (expectedChecksum !== actualChecksum) {
+      throw new Error(`Invalid Stellar G address checksum: ${trimmed}`);
     }
     return decoded.subarray(1, 33);
   }
@@ -529,7 +550,7 @@ export function verifySignatureInBrowser(
 
 /**
  * Encrypts the record fields and salts into a client-side AES-256-GCM envelope
- * using WebCrypto subtle (or deterministic JSON envelope fallback if subtle is unavailable).
+ * using WebCrypto subtle. Never embeds unencrypted plaintext in the ciphertext output.
  */
 export async function encryptPayloadInBrowser(
   payload: {
@@ -539,40 +560,36 @@ export async function encryptPayloadInBrowser(
   secretKeyHex?: string
 ): Promise<string> {
   const plaintext = JSON.stringify(payload);
-  if (typeof globalThis.crypto?.subtle !== 'undefined') {
-    const keyMaterial = secretKeyHex
-      ? sha256(hexToBytes(secretKeyHex))
-      : sha256(textEncoder.encode('proofbook-client-default-key'));
-    const cryptoKey = await globalThis.crypto.subtle.importKey(
-      'raw',
-      keyMaterial as BufferSource,
-      { name: 'AES-GCM' },
-      false,
-      ['encrypt']
-    );
-    const iv = new Uint8Array(12);
-    globalThis.crypto.getRandomValues(iv);
-    const encryptedBuf = await globalThis.crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      cryptoKey,
-      textEncoder.encode(plaintext)
-    );
-    return JSON.stringify({
-      alg: 'AES-256-GCM',
-      iv: bytesToHex(iv),
-      data: bytesToHex(new Uint8Array(encryptedBuf)),
-      // Include encoded envelope metadata for local/auditor selective bundler inspection
-      envelope: bytesToHex(textEncoder.encode(plaintext)),
-    });
+  if (typeof globalThis.crypto?.subtle === 'undefined') {
+    throw new Error('WebCrypto subtle API is required for AES-256-GCM encryption');
   }
+  const keyMaterial = secretKeyHex
+    ? sha256(hexToBytes(secretKeyHex))
+    : sha256(textEncoder.encode('proofbook-client-default-key'));
+  const cryptoKey = await globalThis.crypto.subtle.importKey(
+    'raw',
+    keyMaterial as BufferSource,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt']
+  );
+  const iv = new Uint8Array(12);
+  globalThis.crypto.getRandomValues(iv);
+  const encryptedBuf = await globalThis.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    textEncoder.encode(plaintext)
+  );
   return JSON.stringify({
-    alg: 'PB1-ENVELOPE',
-    envelope: bytesToHex(textEncoder.encode(plaintext)),
+    alg: 'AES-256-GCM',
+    iv: bytesToHex(iv),
+    data: bytesToHex(new Uint8Array(encryptedBuf)),
   });
 }
 
 /**
- * Decrypts or decodes a client-encrypted record envelope back into fields & salts.
+ * Decrypts a client-encrypted record envelope back into fields & salts.
+ * Returns null if the decryption key is invalid or the ciphertext is tampered.
  */
 export async function decryptPayloadInBrowser(
   ciphertext: string,
@@ -589,30 +606,22 @@ export async function decryptPayloadInBrowser(
       parsed.data &&
       typeof globalThis.crypto?.subtle !== 'undefined'
     ) {
-      try {
-        const keyMaterial = secretKeyHex
-          ? sha256(hexToBytes(secretKeyHex))
-          : sha256(textEncoder.encode('proofbook-client-default-key'));
-        const cryptoKey = await globalThis.crypto.subtle.importKey(
-          'raw',
-          keyMaterial as BufferSource,
-          { name: 'AES-GCM' },
-          false,
-          ['decrypt']
-        );
-        const decryptedBuf = await globalThis.crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv: hexToBytes(parsed.iv) as BufferSource },
-          cryptoKey,
-          hexToBytes(parsed.data) as BufferSource
-        );
-        return JSON.parse(textDecoder.decode(decryptedBuf));
-      } catch {
-        // Fallback to envelope if decrypted with a different persona key
-      }
-    }
-    if (parsed.envelope) {
-      const jsonStr = textDecoder.decode(hexToBytes(parsed.envelope));
-      return JSON.parse(jsonStr);
+      const keyMaterial = secretKeyHex
+        ? sha256(hexToBytes(secretKeyHex))
+        : sha256(textEncoder.encode('proofbook-client-default-key'));
+      const cryptoKey = await globalThis.crypto.subtle.importKey(
+        'raw',
+        keyMaterial as BufferSource,
+        { name: 'AES-GCM' },
+        false,
+        ['decrypt']
+      );
+      const decryptedBuf = await globalThis.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: hexToBytes(parsed.iv) as BufferSource },
+        cryptoKey,
+        hexToBytes(parsed.data) as BufferSource
+      );
+      return JSON.parse(textDecoder.decode(decryptedBuf));
     }
     return null;
   } catch {
