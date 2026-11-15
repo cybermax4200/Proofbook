@@ -18,6 +18,7 @@
     "api:dev": "pnpm --filter @proofbook/api dev",
     "api:test": "pnpm --filter @proofbook/api test",
     "api:test:workflow": "pnpm --filter @proofbook/api test:workflow",
+    "api:test:auditor": "pnpm --filter @proofbook/api test:auditor",
     "worker:build": "pnpm --filter @proofbook/worker build",
     "worker:run:once": "pnpm --filter @proofbook/worker run:once",
     "worker:test": "pnpm --filter @proofbook/worker test",
@@ -26,7 +27,9 @@
     "web:test": "pnpm --filter @proofbook/web test",
     "cli:build": "pnpm --filter proofbook-cli build",
     "cli:test": "pnpm --filter proofbook-cli test",
-    "cli:verify": "./cli/proofbook-cli/bin/proofbook verify ./spec/test-vectors/sample-bundle.json --network testnet"
+    "cli:verify": "./cli/proofbook-cli/bin/proofbook verify ./spec/test-vectors/sample-bundle.json --network testnet",
+    "test:e2e": "NODE_PATH=./apps/api/node_modules ./apps/api/node_modules/.bin/tsx --test test/e2e/e2e-drill.test.ts",
+    "demo:drill": "NODE_PATH=./apps/api/node_modules ./apps/api/node_modules/.bin/tsx scripts/demo-drill.ts"
   },
   "packageManager": "pnpm@10.28.2"
 }
